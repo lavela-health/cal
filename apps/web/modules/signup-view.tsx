@@ -237,6 +237,8 @@ export default function Signup({
   const loadingSubmitState = isSubmitSuccessful || isSubmitting;
   const displayBackButton = token ? false : displayEmailForm;
 
+  const isPlatformUser = redirectUrl?.includes("platform") && redirectUrl?.includes("new");
+
   const signUp: SubmitHandler<FormValues> = async (_data) => {
     const { cfToken, ...data } = _data;
 
@@ -293,6 +295,8 @@ export default function Signup({
 
       const gettingStartedPath = onboardingV3Enabled ? "onboarding/getting-started" : "getting-started";
       const verifyOrGettingStarted = emailVerificationEnabled ? "auth/verify-email" : gettingStartedPath;
+      const gettingStartedWithPlatform = "settings/platform/new";
+
       const constructCallBackIfUrlPresent = () => {
         if (isOrgInviteByLink) {
           return `${WEBAPP_URL}/${searchParams.get("callbackUrl")}`;
@@ -301,6 +305,9 @@ export default function Signup({
       };
 
       const constructCallBackIfUrlNotPresent = () => {
+        if (isPlatformUser) {
+          return `${WEBAPP_URL}/${gettingStartedWithPlatform}?from=signup`;
+        }
         return `${WEBAPP_URL}/${verifyOrGettingStarted}?from=signup`;
       };
 
