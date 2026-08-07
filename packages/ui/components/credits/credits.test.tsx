@@ -1,7 +1,6 @@
 /* eslint-disable playwright/missing-playwright-await */
 import { render, screen } from "@testing-library/react";
 import { vi } from "vitest";
-
 import Credits from "./Credits";
 
 vi.mock("@calcom/lib/constants", async () => {
@@ -9,6 +8,8 @@ vi.mock("@calcom/lib/constants", async () => {
   return {
     ...actual,
     CALCOM_VERSION: "mockedVersion",
+    // Pinned so local NEXT_PUBLIC_COMPANY_NAME branding cannot change the assertions below.
+    COMPANY_NAME: "Cal.com, Inc.",
   };
 });
 
