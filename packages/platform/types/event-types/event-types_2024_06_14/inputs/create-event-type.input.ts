@@ -152,7 +152,9 @@ export class CalVideoSettings {
   disableRecordingForGuests?: boolean;
 
   @IsOptional()
-  @IsUrl()
+  // require_tld is relaxed so self-hosted setups can redirect to http://localhost:<port>,
+  // which validator.js otherwise rejects for having no TLD.
+  @IsUrl({ require_tld: false })
   @DocsPropertyOptional({
     description: "URL to which participants are redirected when they exit the call",
   })
