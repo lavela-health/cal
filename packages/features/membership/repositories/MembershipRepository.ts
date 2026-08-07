@@ -340,6 +340,30 @@ export class MembershipRepository {
     });
   }
 
+  async findTeamIdsByUserIdAndRoles({
+    userId,
+    roles,
+    orgId,
+  }: {
+    userId: number;
+    roles: MembershipRole[];
+    orgId?: number;
+  }): Promise<number[]> {
+    const memberships = await this.prismaClient.membership.findMany({
+      where: {
+        userId,
+        accepted: true,
+        role: { in: roles },
+        ...(orgId ? { team: { OR: [{ id: orgId }, { parentId: orgId }] } } : {}),
+      },
+      select: {
+        teamId: true,
+      },
+    });
+
+    return memberships.map((membership) => membership.teamId);
+  }
+
   async findRoleByUserIdAndTeamId({ userId, teamId }: { userId: number; teamId: number }) {
     return await this.prismaClient.membership.findUnique({
       where: {

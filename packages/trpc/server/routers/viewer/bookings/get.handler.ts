@@ -1,6 +1,7 @@
 import dayjs from "@calcom/dayjs";
 import getAllUserBookings from "@calcom/features/bookings/lib/getAllUserBookings";
 import { isTextFilterValue } from "@calcom/features/data-table/lib/utils";
+import { PermissionCheckService } from "@calcom/features/pbac/services/PermissionCheckService";
 import type { DB } from "@calcom/kysely";
 import kysely from "@calcom/kysely";
 import { parseEventTypeColor } from "@calcom/lib/isEventTypeColor";
@@ -17,13 +18,6 @@ import type { Kysely, SelectQueryBuilder } from "kysely";
 import { jsonArrayFrom, jsonObjectFrom } from "kysely/helpers/postgres";
 import type { TrpcSessionUser } from "../../../types";
 import type { TGetInputSchema } from "./get.schema";
-
-class PermissionCheckService {
-  constructor(_prisma?: unknown) {}
-  async checkPermission(..._args: unknown[]) { return true; }
-  async hasPermission(..._args: unknown[]) { return true; }
-  async getTeamIdsWithPermission(..._args: unknown[]): Promise<number[]> { return []; }
-}
 
 type GetOptions = {
   ctx: {
