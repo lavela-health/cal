@@ -1,8 +1,8 @@
-import { ROADMAP } from "@calcom/lib/constants";
 import { useLocale } from "@calcom/lib/hooks/useLocale";
 import useMeQuery from "@calcom/trpc/react/hooks/useMeQuery";
 import classNames from "@calcom/ui/classNames";
 import { Avatar } from "@calcom/ui/components/avatar";
+import { useGetUserAttributes } from "@calcom/web/components/settings/platform/hooks/useGetUserAttributes";
 import {
   Menu,
   MenuItem,
@@ -14,26 +14,21 @@ import {
   MenuTrigger,
 } from "@coss/ui/components/menu";
 import {
+  BlocksIcon,
   ChevronDownIcon,
   ChevronUpIcon,
-  CircleHelpIcon,
   LogOutIcon,
-  MapIcon,
   MoonIcon,
   SettingsIcon,
   UserIcon,
 } from "@coss/ui/icons";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { signOut } from "next-auth/react";
-import type { MouseEvent } from "react";
 import { useEffect, useState } from "react";
 
 declare global {
   interface Window {
-    Support?: {
-      open: () => void;
-      shouldShowTriggerButton: (showTrigger: boolean) => void;
-    };
     Beacon?: BeaconFunction;
   }
 }
@@ -49,8 +44,11 @@ interface UserDropdownProps {
 }
 
 export function UserDropdown({ small }: UserDropdownProps) {
+  const { isPlatformUser } = useGetUserAttributes();
   const { t } = useLocale();
   const { data: user, isPending } = useMeQuery();
+  const pathname = usePathname();
+  const isPlatformPages = pathname?.startsWith("/settings/platform");
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -80,25 +78,6 @@ export function UserDropdown({ small }: UserDropdownProps) {
   }, [user?.username]);
 
   const [menuOpen, setMenuOpen] = useState(false);
-  const [openSupportAfterClose, setOpenSupportAfterClose] = useState(false);
-
-  const handleHelpClick = (e?: MouseEvent) => {
-    e?.preventDefault();
-    e?.stopPropagation();
-
-    setOpenSupportAfterClose(true);
-    setMenuOpen(false);
-  };
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    if (!menuOpen && openSupportAfterClose) {
-      setTimeout(() => {
-        window.Support?.open();
-      }, 0);
-      setOpenSupportAfterClose(false);
-    }
-  }, [menuOpen, openSupportAfterClose]);
 
   // Prevent rendering dropdown if user isn't available.
   // We don't want to show nameless user.
@@ -161,30 +140,30 @@ export function UserDropdown({ small }: UserDropdownProps) {
 
       <>
         <MenuPopup align="start">
-          <>
-            <MenuItem render={<Link href="/settings/my-account/profile" />}>
-              <UserIcon />
-              {t("my_profile")}
-            </MenuItem>
-            <MenuItem render={<Link href="/settings/my-account/general" />}>
-              <SettingsIcon />
-              {t("my_settings")}
-            </MenuItem>
-            <MenuItem render={<Link href="/settings/my-account/out-of-office" />}>
-              <MoonIcon />
-              {t("out_of_office")}
-            </MenuItem>
-            <MenuSeparator />
-          </>
+          {!isPlatformPages && (
+            <>
+              <MenuItem render={<Link href="/settings/my-account/profile" />}>
+                <UserIcon />
+                {t("my_profile")}
+              </MenuItem>
+              <MenuItem render={<Link href="/settings/my-account/general" />}>
+                <SettingsIcon />
+                {t("my_settings")}
+              </MenuItem>
+              <MenuItem render={<Link href="/settings/my-account/out-of-office" />}>
+                <MoonIcon />
+                {t("out_of_office")}
+              </MenuItem>
+              <MenuSeparator />
+            </>
+          )}
 
-          <MenuItem render={<a href={ROADMAP} target="_blank" rel="noreferrer" />}>
-            <MapIcon />
-            {t("visit_roadmap")}
-          </MenuItem>
-          <MenuItem onClick={handleHelpClick}>
-            <CircleHelpIcon />
-            {t("help")}
-          </MenuItem>
+          {!isPlatformPages && isPlatformUser && (
+            <MenuItem render={<Link href="/settings/platform" />} className="todesktop:hidden hidden lg:flex">
+              <BlocksIcon />
+              {t("platform")}
+            </MenuItem>
+          )}
           <MenuSeparator />
 
           <MenuItem

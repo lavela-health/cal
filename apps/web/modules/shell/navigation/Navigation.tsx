@@ -1,6 +1,7 @@
 import { useIsEmbed } from "@calcom/embed-core/embed-iframe";
 import { useIsStandalone } from "@calcom/lib/hooks/useIsStandalone";
 import classNames from "@calcom/ui/classNames";
+import { useGetUserAttributes } from "@calcom/web/components/settings/platform/hooks/useGetUserAttributes";
 import { useSession } from "next-auth/react";
 import { useMemo } from "react";
 import UnconfirmedBookingBadge from "../../bookings/components/UnconfirmedBookingBadge";
@@ -11,18 +12,18 @@ import { useMobileMoreItems } from "./useMobileMoreItems";
 
 export const MORE_SEPARATOR_NAME = "more";
 
-const getNavigationItems = (): NavigationItemType[] => [
-  {
-    name: "event_types_page_title",
-    href: "/event-types",
-    icon: "link",
-  },
+const getNavigationItems = ({ isPlatformUser }: { isPlatformUser: boolean }): NavigationItemType[] => [
   {
     name: "bookings",
     href: "/bookings/upcoming",
     icon: "calendar",
     badge: <UnconfirmedBookingBadge />,
     isCurrent: ({ pathname }) => pathname?.startsWith("/bookings") ?? false,
+  },
+  {
+    name: "event_types_page_title",
+    href: "/event-types",
+    icon: "link",
   },
   {
     name: "availability",
@@ -56,6 +57,16 @@ const getNavigationItems = (): NavigationItemType[] => [
       },
     ],
   },
+  // Gated on the same condition as the UserDropdown entry: the user's organization is a platform org.
+  ...(isPlatformUser
+    ? ([
+        {
+          name: "platform",
+          href: "/settings/platform",
+          icon: "blocks",
+        },
+      ] satisfies NavigationItemType[])
+    : []),
   {
     name: MORE_SEPARATOR_NAME,
     href: "/more",
@@ -63,9 +74,37 @@ const getNavigationItems = (): NavigationItemType[] => [
   },
 ];
 
-const useNavigationItems = () => {
+// Shown in place of the regular navigation while the user is inside /settings/platform.
+// Upstream also lists Billing and Members here; both routes depend on the EE organizations
+// layer this fork removed, so they are omitted rather than linking to 404s.
+const platformNavigationItems: NavigationItemType[] = [
+  // The platform sidebar replaces the regular navigation entirely and UserDropdown hides its
+  // entries on these pages, so without this there is no way back to the app except the browser.
+  {
+    name: "back_to_dashboard",
+    href: "/bookings/upcoming",
+    icon: "arrow-left",
+  },
+  {
+    name: "Dashboard",
+    href: "/settings/platform",
+    // Default matching is a prefix match, which would light Dashboard up on every
+    // /settings/platform/* page. The dashboard is only current on its own route.
+    isCurrent: ({ pathname }) => pathname === "/settings/platform" || pathname === "/settings/platform/",
+    icon: "layout-dashboard",
+  },
+  {
+    name: "Managed Users",
+    href: "/settings/platform/managed-users",
+    icon: "users",
+  },
+];
+
+const useNavigationItems = (isPlatformNavigation = false) => {
+  const { isPlatformUser } = useGetUserAttributes();
+
   return useMemo(() => {
-    const items = getNavigationItems();
+    const items = isPlatformNavigation ? platformNavigationItems : getNavigationItems({ isPlatformUser });
 
     const desktopNavigationItems = items.filter((item) => item.name !== MORE_SEPARATOR_NAME);
     const mobileNavigationBottomItems = items.filter(
@@ -80,11 +119,11 @@ const useNavigationItems = () => {
       mobileNavigationBottomItems,
       mobileNavigationMoreItems,
     };
-  }, []);
+  }, [isPlatformNavigation, isPlatformUser]);
 };
 
-export const Navigation = () => {
-  const { desktopNavigationItems } = useNavigationItems();
+export const Navigation = ({ isPlatformNavigation = false }: { isPlatformNavigation?: boolean }) => {
+  const { desktopNavigationItems } = useNavigationItems(isPlatformNavigation);
 
   return (
     <nav className="mt-2 flex-1 md:px-2 lg:mt-4 lg:px-0">

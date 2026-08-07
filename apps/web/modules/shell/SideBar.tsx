@@ -12,6 +12,7 @@ import { SkeletonText } from "@calcom/ui/components/skeleton";
 import { Tooltip } from "@calcom/ui/components/tooltip";
 import { ArrowLeftIcon, ArrowRightIcon } from "@coss/ui/icons";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import type { User as UserAuth } from "next-auth";
 import { useSession } from "next-auth/react";
 import { KBarTrigger } from "./Kbar";
@@ -22,14 +23,16 @@ import { UserDropdown } from "./user-dropdown/UserDropdown";
 
 export type SideBarContainerProps = {
   bannersHeight: number;
+  isPlatformUser?: boolean;
 };
 
 export type SideBarProps = {
   bannersHeight: number;
   user?: UserAuth | null;
+  isPlatformUser?: boolean;
 };
 
-export function SideBarContainer({ bannersHeight }: SideBarContainerProps) {
+export function SideBarContainer({ bannersHeight, isPlatformUser = false }: SideBarContainerProps) {
   const { status, data } = useSession();
   const isStandalone = useIsStandalone();
 
@@ -38,11 +41,13 @@ export function SideBarContainer({ bannersHeight }: SideBarContainerProps) {
   // Though when logged out, app store pages would temporarily show SideBar until session status is confirmed.
   if (status !== "loading" && status !== "authenticated") return null;
   if (isStandalone) return null;
-  return <SideBar bannersHeight={bannersHeight} user={data?.user} />;
+  return <SideBar isPlatformUser={isPlatformUser} bannersHeight={bannersHeight} user={data?.user} />;
 }
 
 export function SideBar({ bannersHeight, user }: SideBarProps) {
   const { t, isLocaleReady } = useLocale();
+  const pathname = usePathname();
+  const isPlatformPages = pathname?.startsWith("/settings/platform");
 
   const publicPageUrl = `${WEBAPP_URL}/${user?.orgAwareUsername}`;
 
@@ -58,10 +63,10 @@ export function SideBar({ bannersHeight, user }: SideBarProps) {
   return (
     <div className="relative">
       <aside
-        style={sidebarStylingAttributes}
+        style={!isPlatformPages ? sidebarStylingAttributes : {}}
         className={classNames(
           "fixed left-0 hidden h-full w-14 flex-col overflow-y-auto overflow-x-hidden border-muted border-r bg-cal-muted md:sticky md:flex lg:w-56 lg:px-3",
-          "max-h-screen"
+          !isPlatformPages && "max-h-screen"
         )}>
         <div className="flex h-full flex-col justify-between py-3 lg:pt-4">
           <header className="todesktop:-mt-3 todesktop:flex-col-reverse items-center justify-between todesktop:[-webkit-app-region:drag] md:hidden lg:flex">
@@ -114,51 +119,53 @@ export function SideBar({ bannersHeight, user }: SideBarProps) {
             </div>
           </header>
           {/* logo icon for tablet */}
-          <Link href="/event-types" className="text-center md:inline lg:hidden">
+          <Link href="/bookings/upcoming" className="text-center md:inline lg:hidden">
             <Logo small icon />
           </Link>
-          <Navigation />
+          <Navigation isPlatformNavigation={isPlatformPages} />
         </div>
 
-        <div className="md:px-2 md:pb-4 lg:p-0">
-          {bottomNavItems.map((item, index) => (
-            <Tooltip side="right" content={t(item.name)} className="lg:hidden" key={item.name}>
-              <ButtonOrLink
-                id={item.name}
-                href={item.href || undefined}
-                aria-label={t(item.name)}
-                target={item.target}
-                className={classNames(
-                  "text-left",
-                  "justify-right group flex items-center rounded-md px-2 py-1.5 font-medium text-default text-sm transition [&[aria-current='page']]:bg-emphasis",
-                  "mt-0.5 w-full text-sm [&[aria-current='page']]:text-emphasis",
-                  isLocaleReady ? "hover:bg-subtle hover:text-emphasis" : "",
-                  index === 0 && "mt-3"
-                )}
-                onClick={item.onClick}>
-                {!!item.icon && (
-                  <Icon
-                    name={item.isLoading ? "rotate-cw" : item.icon}
-                    className={classNames(
-                      "h-4 w-4 shrink-0 aria-[aria-current='page']:text-inherit",
-                      "ml-3 md:mx-auto lg:ltr:mr-2 lg:rtl:ml-2",
-                      item.isLoading && "animate-spin"
-                    )}
-                    aria-hidden="true"
-                  />
-                )}
-                {isLocaleReady ? (
-                  <span className="hidden w-full justify-between lg:flex">
-                    <div className="flex">{t(item.name)}</div>
-                  </span>
-                ) : (
-                  <SkeletonText className="h-[20px] w-full" />
-                )}
-              </ButtonOrLink>
-            </Tooltip>
-          ))}
-          {!IS_VISUAL_REGRESSION_TESTING && <Credits />}
-        </div>
+        {!isPlatformPages && (
+          <div className="md:px-2 md:pb-4 lg:p-0">
+            {bottomNavItems.map((item, index) => (
+              <Tooltip side="right" content={t(item.name)} className="lg:hidden" key={item.name}>
+                <ButtonOrLink
+                  id={item.name}
+                  href={item.href || undefined}
+                  aria-label={t(item.name)}
+                  target={item.target}
+                  className={classNames(
+                    "text-left",
+                    "justify-right group flex items-center rounded-md px-2 py-1.5 font-medium text-default text-sm transition [&[aria-current='page']]:bg-emphasis",
+                    "mt-0.5 w-full text-sm [&[aria-current='page']]:text-emphasis",
+                    isLocaleReady ? "hover:bg-subtle hover:text-emphasis" : "",
+                    index === 0 && "mt-3"
+                  )}
+                  onClick={item.onClick}>
+                  {!!item.icon && (
+                    <Icon
+                      name={item.isLoading ? "rotate-cw" : item.icon}
+                      className={classNames(
+                        "h-4 w-4 shrink-0 aria-[aria-current='page']:text-inherit",
+                        "ml-3 md:mx-auto lg:ltr:mr-2 lg:rtl:ml-2",
+                        item.isLoading && "animate-spin"
+                      )}
+                      aria-hidden="true"
+                    />
+                  )}
+                  {isLocaleReady ? (
+                    <span className="hidden w-full justify-between lg:flex">
+                      <div className="flex">{t(item.name)}</div>
+                    </span>
+                  ) : (
+                    <SkeletonText className="h-[20px] w-full" />
+                  )}
+                </ButtonOrLink>
+              </Tooltip>
+            ))}
+            {!IS_VISUAL_REGRESSION_TESTING && <Credits />}
+          </div>
+        )}
       </aside>
     </div>
   );
