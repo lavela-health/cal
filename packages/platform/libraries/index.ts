@@ -90,12 +90,12 @@ export { paymentDataSelect };
 export { confirmHandler as confirmBookingHandler } from "@calcom/trpc/server/routers/viewer/bookings/confirm.handler";
 export { getBookingFieldsWithSystemFields };
 
-export { checkAdminOrOwner } from "@calcom/features/auth/lib/checkAdminOrOwner";
 export { sendLocationChangeEmailsAndSMS } from "@calcom/emails/email-manager";
+export { checkAdminOrOwner } from "@calcom/features/auth/lib/checkAdminOrOwner";
 export { verifyCodeUnAuthenticated } from "@calcom/features/auth/lib/verifyCodeUnAuthenticated";
 export { sendEmailVerificationByCode } from "@calcom/features/auth/lib/verifyEmail";
-export { getCalendarLinks } from "@calcom/features/bookings/lib/getCalendarLinks";
 export { BookingReferenceRepository } from "@calcom/features/bookingReference/repositories/BookingReferenceRepository";
+export { getCalendarLinks } from "@calcom/features/bookings/lib/getCalendarLinks";
 export { BookingAccessService } from "@calcom/features/bookings/services/BookingAccessService";
 export { CredentialRepository } from "@calcom/features/credentials/repositories/CredentialRepository";
 export type { OrgMembershipLookup } from "@calcom/features/di/modules/OrgMembershipLookup";
@@ -180,23 +180,7 @@ export async function verifyCodeAuthenticated(_args: {
   return false;
 }
 
-// createNewUsersConnectToOrgIfExists removed (EE feature) — stub for API v2
-export async function createNewUsersConnectToOrgIfExists(_args: {
-  invitations: { usernameOrEmail: string; role: string }[];
-  creationSource?: string;
-  teamId: number;
-  isOrg: boolean;
-  parentId: number | null;
-  autoAcceptEmailDomain: string;
-  orgConnectInfoByUsernameOrEmail: Record<string, { orgId: number; autoAccept: boolean }>;
-  isPlatformManaged?: boolean;
-  timeFormat?: number;
-  weekStart?: string;
-  timeZone?: string;
-  language?: string;
-}): Promise<{ id: number; email: string; username: string }[]> {
-  throw new Error("Organization user creation is not available in community edition");
-}
+export { createNewUsersConnectToOrgIfExists } from "@calcom/features/users/lib/createNewUsersConnectToOrgIfExists";
 
 // sendVerificationCode removed (EE feature) — stub for API v2
 export async function sendVerificationCode(_phoneNumber: string): Promise<void> {
