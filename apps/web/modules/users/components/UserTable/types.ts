@@ -26,7 +26,10 @@ export type UserTableUser = {
 export type PlatformManagedUserTableUser = Omit<
   UserTableUser,
   "lastActiveAt" | "attributes" | "completedOnboarding"
->;
+> & {
+  // Returned by the managed-users endpoint but absent from the regular user table shape.
+  defaultScheduleId: number | null;
+};
 
 export type UserTablePayload = {
   showModal: boolean;

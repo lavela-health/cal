@@ -2,12 +2,12 @@
 
 import { getUserAvatarUrl } from "@calcom/lib/getAvatarUrl";
 import { useLocale } from "@calcom/lib/hooks/useLocale";
-import { trpc } from "@calcom/trpc/react";
+import { MembershipRole } from "@calcom/prisma/enums";
 import { Avatar } from "@calcom/ui/components/avatar";
 import { Badge } from "@calcom/ui/components/badge";
 import { Checkbox } from "@calcom/ui/components/form";
 import { SkeletonText } from "@calcom/ui/components/skeleton";
-import { keepPreviousData } from "@tanstack/react-query";
+import { useOAuthClientUsers } from "@lib/hooks/settings/platform/oauth-clients/useOAuthClientUsers";
 import { type ColumnDef, getCoreRowModel, getSortedRowModel, useReactTable } from "@tanstack/react-table";
 import { useMemo, useReducer, useState } from "react";
 import {
@@ -45,7 +45,9 @@ const initialState: UserTableState = {
 
 const initalColumnVisibility = {
   select: true,
+  name: true,
   member: true,
+  defaultScheduleId: true,
   role: true,
   teams: true,
   actions: true,
@@ -78,8 +80,38 @@ function UserListTableContent({ oAuthClientId }: PlatformManagedUsersTableProps)
   const limit = pageSize;
   const offset = pageIndex * pageSize;
 
-  const data = { rows: [] as PlatformManagedUserTableUser[], meta: { totalRowCount: 0 } };
-  const isPending = false;
+  // Upstream read this from trpc viewer.organizations.listMembers, a router this fork removed.
+  // The same data is available from API v2, which accepts the caller's next-auth session.
+  const { data: managedUsers, isPending } = useOAuthClientUsers(oAuthClientId, limit, offset);
+
+  const data = useMemo(
+    () => ({
+      rows: managedUsers
+        .filter((user) =>
+          searchTerm
+            ? `${user.name ?? ""} ${user.email} ${user.username ?? ""}`
+                .toLowerCase()
+                .includes(searchTerm.toLowerCase())
+            : true
+        )
+        .map((user) => ({
+          id: user.id,
+          name: user.name,
+          username: user.username,
+          email: user.email,
+          // Managed users are always accepted MEMBERs of the OAuth client's organization.
+          role: MembershipRole.MEMBER,
+          timeZone: user.timeZone,
+          bio: user.bio,
+          avatarUrl: user.avatarUrl,
+          defaultScheduleId: user.defaultScheduleId,
+          accepted: true,
+          teams: [],
+        })) as PlatformManagedUserTableUser[],
+      meta: { totalRowCount: managedUsers.length },
+    }),
+    [managedUsers, searchTerm]
+  );
 
   const totalRowCount = data?.meta?.totalRowCount ?? 0;
 
@@ -112,12 +144,31 @@ function UserListTableContent({ oAuthClientId }: PlatformManagedUsersTableProps)
         ),
       },
       {
+        id: "name",
+        accessorFn: (data) => data.name,
+        size: 160,
+        header: () => {
+          return t("name");
+        },
+        cell: ({ row }) => {
+          if (isPending) {
+            return <SkeletonText className="h-6 w-1/4" />;
+          }
+          const { name, username } = row.original;
+          return (
+            <div data-testid={`member-${username}-name`} className="text-emphasis text-sm">
+              {name || "-"}
+            </div>
+          );
+        },
+      },
+      {
         id: "member",
         accessorFn: (data) => data.email,
         enableHiding: false,
         size: 200,
         header: () => {
-          return t("managed_users");
+          return t("id_email");
         },
         cell: ({ row }) => {
           if (isPending) {
@@ -145,6 +196,23 @@ function UserListTableContent({ oAuthClientId }: PlatformManagedUsersTableProps)
                   {email}
                 </div>
               </div>
+            </div>
+          );
+        },
+      },
+      {
+        id: "defaultScheduleId",
+        accessorFn: (data) => data.defaultScheduleId,
+        header: t("default_schedule_id"),
+        size: 140,
+        cell: ({ row }) => {
+          if (isPending) {
+            return <SkeletonText className="h-6 w-1/4" />;
+          }
+          const { defaultScheduleId, username } = row.original;
+          return (
+            <div data-testid={`member-${username}-default-schedule-id`} className="text-default text-sm">
+              {defaultScheduleId ?? "-"}
             </div>
           );
         },
