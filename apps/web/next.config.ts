@@ -222,7 +222,18 @@ const nextConfig = (phase: string): NextConfig => {
     );
   }
 
+  // The repo-root .env is loaded into this process by dotenv above, and NEXT_PUBLIC_CALCOM_VERSION is
+  // assigned at module scope. Neither is visible to Turbopack's client-side env inlining, which only
+  // resolves .env files next to the app (there are none), so client bundles would fall back to the
+  // defaults in @calcom/lib/constants while the server rendered the configured values.
+  const publicEnv = Object.fromEntries(
+    Object.entries(process.env).filter(
+      ([key, value]) => key.startsWith("NEXT_PUBLIC_") && typeof value === "string"
+    )
+  ) as Record<string, string>;
+
   return {
+    env: publicEnv,
     output: process.env.BUILD_STANDALONE === "true" ? "standalone" : undefined,
     serverExternalPackages: [
       "deasync",
