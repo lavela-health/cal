@@ -29,11 +29,14 @@ services:
     runtime: image
     image:
       url: ghcr.io/lavela-health/cal-web:main
-      creds: ghcr-lavela-health
+      creds:
+        fromRegistryCreds:
+          name: ghcr-lavela-health
     region: ohio
     plan: standard
     numInstances: 1
     healthCheckPath: /api/version
+    autoDeployTrigger: "off"
     envVars:
       - fromGroup: cal-common
 
@@ -107,11 +110,14 @@ services:
     runtime: image
     image:
       url: ghcr.io/lavela-health/cal-api:main
-      creds: ghcr-lavela-health
+      creds:
+        fromRegistryCreds:
+          name: ghcr-lavela-health
     region: ohio
     plan: standard
     numInstances: 1
     healthCheckPath: /health
+    autoDeployTrigger: "off"
     envVars:
       - fromGroup: cal-common
 
