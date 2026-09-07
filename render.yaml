@@ -116,8 +116,11 @@ services:
     region: ohio
     plan: standard
     numInstances: 1
-    healthCheckPath: /health
     autoDeployTrigger: "off"
+    # No healthCheckPath: Render rejects it on pserv ("pserv service type cannot
+    # have a health check path") -- it is web-only. Render considers a private
+    # service live once it binds its port. The app's /health endpoint still
+    # exists and is reachable through the web rewrite for manual checks.
     envVars:
       - fromGroup: cal-common
 

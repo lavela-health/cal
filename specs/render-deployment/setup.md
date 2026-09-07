@@ -44,6 +44,12 @@ npx ajv-cli@5 validate -s /tmp/render.schema.json -d /tmp/render.json --spec=dra
 
 `render blueprints validate` (Render CLI v2.7.0+) does the same thing.
 
+**Schema-valid is necessary, not sufficient.** Render enforces rules the JSON Schema
+does not encode, and they only surface at sync time. One already hit us: `pserv` services
+reject `healthCheckPath` ("pserv service type cannot have a health check path") because
+it is web-only, even though the schema accepts it. Expect sync-time errors to be the real
+gate.
+
 Watch for YAML 1.1 booleans while you are here: a bare `off`, `on`, `yes` or `no` parses
 as a boolean, so `autoDeployTrigger` must be quoted as `"off"` to stay a string.
 
@@ -196,7 +202,10 @@ curl -sI https://cal.lavelahealth.com/api/v2/health  # 200, rewrite reaches the 
 ```
 
 The second is the one that matters — it proves the Next.js rewrite is reaching `cal-api`
-over Render's private network. If it 502s, check that `API_PORT` is `10000` on `cal-api`
+over Render's private network. It is also the only health signal for the API: Render does
+not health-check private services, and marks `cal-api` live as soon as it binds its port,
+so a booted-but-broken API would look healthy in the dashboard. Check this endpoint after
+every API deploy. If it 502s, check that `API_PORT` is `10000` on `cal-api`
 and that `NEXT_PUBLIC_API_V2_URL` on `cal-web` is `http://cal-api:10000/api/v2`.
 
 ## 9. Immediately after
