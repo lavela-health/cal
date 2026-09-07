@@ -32,7 +32,7 @@ backups, one ops model and no server administration.
 | Render build | **Not used.** Services run `runtime: image` and pull from GHCR |
 | Routing | Web owns the domain; Next.js rewrites `/api/v2/*` to the private API service |
 | API exposure | `type: pserv` — private, reachable only from `cal-web` |
-| Deploy trigger | Push to `main` → build → Render API deploy, SHA-pinned |
+| Deploy trigger | **Manual** (`workflow_dispatch`) → build → Render API deploy, SHA-pinned |
 | Region | `ohio`, matching the rest of the platform |
 
 ### Why we do not let Render build
@@ -66,6 +66,19 @@ Two consequences, both improvements over the droplet plan:
 
 `API_URL` still carries the `/api` prefix, so OAuth redirect URIs are unchanged from the
 Kamal design and resolve on the public host.
+
+### Deploys are manual
+
+`deploy.yml` runs on `workflow_dispatch` only; there is no `push` trigger. Merging to
+`main` builds nothing and deploys nothing.
+
+Releasing to production is an explicit act. An automatic trigger would build two
+multi-GB images and push to a live Render service as a side effect of merging an
+unrelated change, with nobody watching. The cost is remembering to run it; the benefit
+is that no merge can surprise production.
+
+This can be revisited once the deployment has some history behind it — the workflow is
+otherwise ready for a `push: branches: [main]` trigger to be added back.
 
 ### Immutable deploys
 

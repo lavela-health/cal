@@ -163,8 +163,12 @@ injects connection strings from the managed database and Key Value instance.
 
 ## 8. First deploy
 
-Re-run the **Deploy** workflow. It builds both images, then deploys web (which applies
-`prisma migrate deploy` on boot) and then the API.
+Re-run the **Deploy** workflow (`Actions → Deploy → Run workflow`). It builds both
+images, then deploys web (which applies `prisma migrate deploy` on boot) and then the
+API.
+
+> Deploys are **manual by design** — `deploy.yml` has no `push` trigger, so merging to
+> `main` never deploys. Every release is an explicit run of this workflow.
 
 Verify:
 
