@@ -1,0 +1,224 @@
+# Render blueprint for the Lavela fork of Cal.diy.
+#
+# Images are built from THIS repository by .github/workflows/deploy.yml and
+# pushed to GHCR. Render pulls them rather than building: the web build needs a
+# 6144 MB heap and the API build 8192 MB, and Render does not publish build
+# machine specs. Nothing upstream or prebuilt by Cal.com is used.
+#
+# The `:main` tags below are the bootstrap value. Each CI deploy pins an
+# immutable ghcr.io/...:<commit-sha> image via the Render API, so a rollback is
+# just a redeploy of an older SHA.
+#
+# One-time setup before the first blueprint sync: create a registry credential
+# named `ghcr-lavela-health` in the Render dashboard (a GitHub PAT with
+# read:packages). See specs/kamal-deployment/render-setup.md.
+
+services:
+  # ---------------------------------------------------------------------------
+  # Web — owns cal.lavelahealth.com.
+  #
+  # Render attaches a custom domain to a single service and has no path-based
+  # router, so the API cannot claim /api/v2 at the edge. Instead web takes all
+  # traffic and the existing Next.js rewrite (apps/web/next.config.ts:371)
+  # forwards /api/v2/:path* to NEXT_PUBLIC_API_V2_URL. This is the fallback
+  # topology from specs/kamal-deployment/design.md section 7 — on Render it is
+  # the native shape, and it mirrors the pserv pattern used by phi-service.
+  # ---------------------------------------------------------------------------
+  - type: web
+    name: cal-web
+    runtime: image
+    image:
+      url: ghcr.io/lavela-health/cal-web:main
+      creds: ghcr-lavela-health
+    region: ohio
+    plan: standard
+    numInstances: 1
+    healthCheckPath: /api/version
+    envVars:
+      - fromGroup: cal-common
+
+      # `next start` honours PORT.
+      - key: PORT
+        value: 3000
+
+      - key: NEXT_PUBLIC_WEBAPP_URL
+        value: https://cal.lavelahealth.com
+      # Equal to NEXT_PUBLIC_WEBAPP_URL so scripts/replace-placeholder.sh is a
+      # no-op at boot instead of a slow find/replace pass over .next.
+      - key: BUILT_NEXT_PUBLIC_WEBAPP_URL
+        value: https://cal.lavelahealth.com
+      - key: NEXTAUTH_URL
+        value: https://cal.lavelahealth.com
+      - key: NEXT_PUBLIC_WEBSITE_URL
+        value: https://cal.lavelahealth.com
+      - key: ALLOWED_HOSTNAMES
+        value: '"cal.lavelahealth.com"'
+
+      # Read by next.config.ts at server start, not baked into the bundle, so a
+      # runtime value is correct here. Points at the private API service on
+      # Render's internal network.
+      - key: NEXT_PUBLIC_API_V2_URL
+        value: http://cal-api:10000/api/v2
+
+      # This instance sends no email: the `emails` KILL_SWITCH feature flag is
+      # enabled by migration 20260907000000_enable_emails_kill_switch, and
+      # BaseEmail.sendEmail() checks it before building a transport. No SMTP
+      # settings are needed. These two are kept only because they are read when
+      # composing payloads, and would be needed if email is ever re-enabled.
+      - key: EMAIL_FROM
+        value: hello@lavelahealth.com
+      - key: EMAIL_FROM_NAME
+        value: Lavela Health
+
+      # scripts/start.sh runs `wait-for-it.sh $DATABASE_HOST`. Render generates
+      # the Postgres hostname, so fill this in as <internal-host>:5432 after the
+      # first blueprint sync. start.sh has no `set -e`, so an unset value is
+      # noisy rather than fatal.
+      - key: DATABASE_HOST
+        sync: false
+
+      - key: DATABASE_URL
+        fromDatabase:
+          name: cal-postgres
+          property: connectionString
+      - key: DATABASE_DIRECT_URL
+        fromDatabase:
+          name: cal-postgres
+          property: connectionString
+
+      - key: NEXTAUTH_SECRET
+        sync: false
+      - key: CALENDSO_ENCRYPTION_KEY
+        sync: false
+      - key: CALCOM_LICENSE_KEY
+        sync: false
+      - key: CRON_API_KEY
+        sync: false
+      - key: CALCOM_SERVICE_ACCOUNT_ENCRYPTION_KEY
+        sync: false
+      - key: DAILY_API_KEY
+        sync: false
+
+  # ---------------------------------------------------------------------------
+  # API v2 — private service, reached only through the web rewrite.
+  # ---------------------------------------------------------------------------
+  - type: pserv
+    name: cal-api
+    runtime: image
+    image:
+      url: ghcr.io/lavela-health/cal-api:main
+      creds: ghcr-lavela-health
+    region: ohio
+    plan: standard
+    numInstances: 1
+    healthCheckPath: /health
+    envVars:
+      - fromGroup: cal-common
+
+      # main.ts listens on config `api.port`, which reads API_PORT. 10000 is
+      # Render's conventional port and is what cal-web addresses internally.
+      - key: API_PORT
+        value: 10000
+
+      # Must carry the /api prefix: config/app.ts derives api.url as
+      # `${API_URL}/v2`, and that builds the OAuth redirect URIs for Google,
+      # Outlook, Zoom, Office365 and Stripe. Those must resolve on the public
+      # host, which is web's domain.
+      - key: API_URL
+        value: https://cal.lavelahealth.com/api
+      - key: WEB_APP_URL
+        value: https://cal.lavelahealth.com
+      - key: NEXT_PUBLIC_WEBAPP_URL
+        value: https://cal.lavelahealth.com
+
+      - key: LOG_LEVEL
+        value: info
+      - key: LOGGER_BRIDGE_LOG_LEVEL
+        value: "4"
+      - key: REWRITE_API_V2_PREFIX
+        value: "1"
+      - key: IS_E2E
+        value: "false"
+      - key: USE_POOL
+        value: "true"
+
+      # config/app.ts reads all four through getEnv with no fallback.
+      - key: DATABASE_URL
+        fromDatabase:
+          name: cal-postgres
+          property: connectionString
+      - key: DATABASE_DIRECT_URL
+        fromDatabase:
+          name: cal-postgres
+          property: connectionString
+      - key: DATABASE_READ_URL
+        fromDatabase:
+          name: cal-postgres
+          property: connectionString
+      - key: DATABASE_WRITE_URL
+        fromDatabase:
+          name: cal-postgres
+          property: connectionString
+
+      # RedisService throws "Misconfigured Redis, halting." without this.
+      # Render Key Value hands out a plain redis:// URL, which is why the
+      # app.module.ts fix (never append ?tls=true) is required here.
+      - key: REDIS_URL
+        fromService:
+          name: cal-keyvalue
+          type: keyvalue
+          property: connectionString
+
+      - key: NEXTAUTH_SECRET
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: CALENDSO_ENCRYPTION_KEY
+        sync: false
+      - key: CALCOM_LICENSE_KEY
+        sync: false
+      - key: CALCOM_SERVICE_ACCOUNT_ENCRYPTION_KEY
+        sync: false
+      - key: DAILY_API_KEY
+        sync: false
+      # Mandatory even though billing is unused: getEnv throws without them and
+      # the API will not boot. Placeholders are fine.
+      - key: STRIPE_API_KEY
+        sync: false
+      - key: STRIPE_WEBHOOK_SECRET
+        sync: false
+
+  # ---------------------------------------------------------------------------
+  # Redis-compatible store: Bull queues + caching for API v2.
+  # ---------------------------------------------------------------------------
+  - type: keyvalue
+    name: cal-keyvalue
+    region: ohio
+    plan: starter
+    # noeviction, not allkeys-lru: this backs Bull queues, and evicting job data
+    # under memory pressure would silently drop queued work.
+    maxmemoryPolicy: noeviction
+    # Empty list = reachable only from services on the private network.
+    ipAllowList: []
+
+databases:
+  - name: cal-postgres
+    region: ohio
+    plan: basic-1gb
+    postgresMajorVersion: "16"
+
+envVarGroups:
+  - name: cal-common
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: TZ
+        value: UTC
+      - key: API_KEY_PREFIX
+        value: cal_
+      - key: CALCOM_TELEMETRY_DISABLED
+        value: "1"
+      - key: TRIGGER_API_URL
+        value: https://api.trigger.dev
+      - key: ENABLE_ASYNC_TASKER
+        value: "false"
