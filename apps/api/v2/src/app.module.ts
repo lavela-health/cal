@@ -35,7 +35,10 @@ import { VercelWebhookController } from "@/vercel-webhook.controller";
 
     RedisModule,
     BullModule.forRoot({
-      redis: `${process.env.REDIS_URL}${process.env.NODE_ENV === "production" ? "?tls=true" : ""}`,
+      // Let the URL scheme decide TLS: rediss:// is TLS, redis:// is not.
+      // Unconditionally appending ?tls=true in production broke connections to a
+      // plain Redis running alongside the app on the same host.
+      redis: process.env.REDIS_URL ?? "",
     }),
     ThrottlerModule.forRootAsync({
       imports: [RedisModule],
