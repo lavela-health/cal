@@ -1,7 +1,18 @@
 # Kamal deployment to a DigitalOcean droplet
 
-**Status:** Design approved, not implemented
-**Date:** 2026-08-07
+**Status:** SUPERSEDED by [../render-deployment/design.md](../render-deployment/design.md)
+
+> Deploying to Render instead. The hosting decisions below no longer apply, but the
+> analysis does: environment variable bucketing, the variables that abort API v2 boot,
+> the `API_URL` / OAuth redirect URI reasoning and the §7 fallback topology (which Render
+> adopts as its primary shape) all carried over. The Kamal config itself was never
+> committed — see "The Kamal implementation was not committed" in the Render design.
+
+**Date:** 2026-08-07 (implemented 2026-09-07)
+
+Operator runbook: [droplet-setup.md](./droplet-setup.md).
+Deviations from this design as built are recorded in
+[Implementation notes](#implementation-notes) at the end.
 
 ## Goal
 
@@ -490,3 +501,54 @@ is impractical.
 
 **Secrets.** Keeping secrets local and deploying by hand was rejected in favour of full
 CD. The cost is that secrets exist in two places and must be kept in sync on rotation.
+
+
+---
+
+## Implementation notes
+
+Recorded 2026-09-07, when sections 2-5 were built. Where the built configuration differs
+from the design above, the built behaviour is authoritative.
+
+**`.kamal/secrets` is committed, not gitignored.** Section 2.3 called for gitignoring it.
+That would break CI: the deploy job checks out the repo and Kamal reads the file from the
+checkout. The file contains only `VAR=$VAR` references resolved from the process
+environment, so it carries no secret values. `.gitignore` instead excludes
+`.kamal/secrets-common` and `.kamal/secrets.*`, the destination-scoped variants that
+*can* hold real values.
+
+**First-run bootstrap is a workflow input.** `kamal setup` — which installs Docker and
+boots the accessories — must run once before plain `kamal deploy` works. The deploy
+workflow exposes a `bootstrap` boolean on `workflow_dispatch` for this. Pushes to `main`
+always take the plain deploy path, so accessory containers and their data are never
+touched by a normal deploy.
+
+**Bucket C is smaller than designed.** Secrets for integrations that are not configured
+anywhere today were left out rather than wired up as empty strings:
+`GOOGLE_API_CREDENTIALS`, `MS_GRAPH_CLIENT_ID`, `MS_GRAPH_CLIENT_SECRET`,
+`STRIPE_CLIENT_ID`, `STRIPE_PRIVATE_KEY`, `DAILY_WEBHOOK_SECRET`. Enabling any of these
+means adding the GitHub secret, the `env: secret:` entry, and the `.kamal/secrets` line
+together. `STRIPE_API_KEY` and `STRIPE_WEBHOOK_SECRET` are kept, with placeholder values,
+because the API cannot boot without them.
+
+**Three extra build args.** Bucket A listed `NEXT_PUBLIC_IS_PREMIUM_NEW_PLAN`,
+`NEXT_PUBLIC_ORGANIZATIONS_MIN_SELF_SERVE_SEATS` and
+`NEXT_PUBLIC_ORGANIZATIONS_SELF_SERVE_PRICE_NEW`, but section 2.1's list of `ARG`s to add
+omitted them. They are `NEXT_PUBLIC_*` and therefore inlined at build time, so they were
+added to the Dockerfile too.
+
+**Droplet sizing, deferred by section 8, is now specified.** 4 vCPU / 8 GB / 160 GB,
+Ubuntu 24.04 LTS, plus 4 GB of swap. Builds run on GitHub runners, so this covers runtime
+only; the disk is sized for Kamal's retained rollback images.
+
+### Known risks carried into production
+
+- **Runner capacity.** A standard GitHub-hosted runner on a private repo is 2 vCPU / 7 GB
+  RAM / ~14 GB disk. The web build runs Node with a 6144 MB heap and the API build with
+  8192 MB. Both jobs reclaim ~10 GB of preinstalled tooling first. If either OOMs or
+  fills the disk, move that job to a larger runner rather than lowering the heap.
+- **SSH is open to the internet.** GitHub-hosted runners have no fixed egress IPs, so
+  port 22 cannot be locked to a range. Mitigated with key-only auth and fail2ban; a
+  self-hosted runner or jump host would close it properly.
+- **No outbound email until an SMTP provider is configured**, and the failure is silent.
+- **No database backups yet.**
