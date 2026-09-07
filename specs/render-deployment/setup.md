@@ -29,6 +29,24 @@ do not exist yet. That is expected — you only need the images at this point.
 
 Confirm both packages appear under the org's Packages tab.
 
+## Validating render.yaml before you push
+
+Render's prose docs are unreliable on nested fields — they describe `image.creds` as a
+plain string, but the API rejects that: it wants
+`creds.fromRegistryCreds.name`. Validate against the machine-readable schema instead of
+finding out at sync time:
+
+```bash
+curl -sfL https://render.com/schema/render.yaml.json -o /tmp/render.schema.json
+ruby -ryaml -rjson -e 'puts JSON.generate(YAML.load_file("render.yaml"))' > /tmp/render.json
+npx ajv-cli@5 validate -s /tmp/render.schema.json -d /tmp/render.json --spec=draft2020 --strict=false
+```
+
+`render blueprints validate` (Render CLI v2.7.0+) does the same thing.
+
+Watch for YAML 1.1 booleans while you are here: a bare `off`, `on`, `yes` or `no` parses
+as a boolean, so `autoDeployTrigger` must be quoted as `"off"` to stay a string.
+
 ## 3. Apply the blueprint
 
 Render dashboard → **New → Blueprint** → select `lavela-health/cal` → it reads
