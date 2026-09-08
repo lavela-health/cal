@@ -64,7 +64,7 @@ services:
       # the rewrite -- the image must be rebuilt. Set here only so the two
       # cannot silently disagree.
       - key: NEXT_PUBLIC_API_V2_URL
-        value: http://cal-api:10000/api/v2
+        value: http://cal-api-mq7v:10000/api/v2
 
       # Diagnostic: Render resolves this to cal-api's real internal host:port.
       # The bare service name "cal-api" does NOT resolve from cal-web, so this is

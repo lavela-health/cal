@@ -62,7 +62,13 @@ jobs:
             # Next.js evaluates rewrites() during `next build` and bakes the result
             # into routes-manifest.json, so this MUST be a build arg. Setting it only
             # at runtime leaves /api/v2/* unrewritten and the API unreachable.
-            NEXT_PUBLIC_API_V2_URL=http://cal-api:10000/api/v2
+            #
+            # The host is NOT the bare service name: Render gives a private service an
+            # internal hostname with a generated suffix. Verified from cal-web --
+            # "cal-api" does not resolve, "cal-api-mq7v" does. If cal-api is ever
+            # recreated the suffix changes and this must be updated and rebuilt; compare
+            # against $CAL_API_INTERNAL_HOSTPORT on cal-web to confirm.
+            NEXT_PUBLIC_API_V2_URL=http://cal-api-mq7v:10000/api/v2
             NEXT_PUBLIC_WEBSITE_URL=https://cal.lavelahealth.com
             NEXT_PUBLIC_APP_NAME=Lavela Cal
             NEXT_PUBLIC_COMPANY_NAME=Lavela Health

@@ -109,11 +109,32 @@ Platform dashboard hung on its skeleton because `useOAuthClients` got HTML back 
 It is now passed as a build arg in `.github/workflows/deploy.yml`, and mirrored in
 `render.yaml` only so the two cannot silently disagree.
 
-**Consequence:** the API's internal address is baked into the web image, which makes the
-image environment-specific. A staging environment whose API has a different internal
-hostname needs its own build. If that becomes painful, replace the static rewrite with a
-Next.js route handler at `apps/web/app/api/v2/[...path]/route.ts` that proxies using a
-runtime env var.
+### The internal hostname is not the service name
+
+The first fix baked `http://cal-api:10000/api/v2` and was still wrong. Render gives a
+private service an internal hostname with a **generated suffix**: from `cal-web`,
+`getent hosts cal-api` returns nothing and `nc` reports "Name or service not known",
+while `cal-api-mq7v:10000` answers `/health` with `OK`.
+
+`cal-web` carries `CAL_API_INTERNAL_HOSTPORT`, wired via `fromService`, purely so Render
+reports the authoritative value. It is not consumed by the app — it exists so the address
+can be re-checked without guessing:
+
+```bash
+echo "$CAL_API_INTERNAL_HOSTPORT"   # in the cal-web shell
+```
+
+**Known fragility, accepted deliberately.** The suffix is specific to this service
+instance, and it is baked into the web image at build time. If `cal-api` is ever deleted
+and recreated, the suffix changes, the baked rewrite points at a host that no longer
+resolves, and **every `/api/v2` request 502s until the image is rebuilt**. Restarts,
+redeploys and plan changes do not regenerate it; only recreating the service does.
+
+If that risk stops being acceptable — or a staging environment is added, since it would
+need its own build — replace the static rewrite with a runtime proxy at
+`apps/web/app/api/v2/[...path]/route.ts` reading `CAL_API_INTERNAL_HOSTPORT` per request.
+That was written and set aside in favour of the smaller change; the rewrite is
+build-time, so nothing else can make it environment-independent.
 
 ## Repository changes
 
