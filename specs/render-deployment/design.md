@@ -90,6 +90,31 @@ A blueprint sync would reset the service to `:main`. That only happens when `ren
 itself changes, and `:main` always points at the latest `main` build, so the drift is
 bounded and self-correcting.
 
+## Correction: `NEXT_PUBLIC_API_V2_URL` is build-time
+
+The superseded Kamal design argued this was a runtime variable, on the grounds that
+`next.config.ts` "runs in Node at server start rather than being bundled". **That is
+wrong**, and it cost a deploy.
+
+Next.js evaluates `rewrites()` during `next build` and writes the result into
+`routes-manifest.json`; `next start` reads the manifest and never re-runs the function.
+The Dockerfile has said so all along — line 34 comments that certain vars are "required
+by Next.js build to create rewrites", and `NEXT_PUBLIC_API_V2_URL` is already an `ARG`.
+
+With the value absent at build time, `if (process.env.NEXT_PUBLIC_API_V2_URL)` was false,
+the rewrite was never registered, and `/api/v2/*` fell through to Next.js and 404'd. The
+Platform dashboard hung on its skeleton because `useOAuthClients` got HTML back and
+`res.json()` threw.
+
+It is now passed as a build arg in `.github/workflows/deploy.yml`, and mirrored in
+`render.yaml` only so the two cannot silently disagree.
+
+**Consequence:** the API's internal address is baked into the web image, which makes the
+image environment-specific. A staging environment whose API has a different internal
+hostname needs its own build. If that becomes painful, replace the static rewrite with a
+Next.js route handler at `apps/web/app/api/v2/[...path]/route.ts` that proxies using a
+runtime env var.
+
 ## Repository changes
 
 Carried over unchanged from the Kamal work, both platform-independent:

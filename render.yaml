@@ -57,9 +57,12 @@ services:
       - key: ALLOWED_HOSTNAMES
         value: '"cal.lavelahealth.com"'
 
-      # Read by next.config.ts at server start, not baked into the bundle, so a
-      # runtime value is correct here. Points at the private API service on
-      # Render's internal network.
+      # Kept in sync with the build arg of the same name in
+      # .github/workflows/deploy.yml, which is what actually creates the
+      # /api/v2 rewrite. Next.js resolves rewrites() at BUILD time into
+      # routes-manifest.json, so changing this value at runtime does not move
+      # the rewrite -- the image must be rebuilt. Set here only so the two
+      # cannot silently disagree.
       - key: NEXT_PUBLIC_API_V2_URL
         value: http://cal-api:10000/api/v2
 

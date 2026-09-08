@@ -59,6 +59,10 @@ jobs:
           # Next.js module-load checks, never baked into the bundle.
           build-args: |
             NEXT_PUBLIC_WEBAPP_URL=https://cal.lavelahealth.com
+            # Next.js evaluates rewrites() during `next build` and bakes the result
+            # into routes-manifest.json, so this MUST be a build arg. Setting it only
+            # at runtime leaves /api/v2/* unrewritten and the API unreachable.
+            NEXT_PUBLIC_API_V2_URL=http://cal-api:10000/api/v2
             NEXT_PUBLIC_WEBSITE_URL=https://cal.lavelahealth.com
             NEXT_PUBLIC_APP_NAME=Lavela Cal
             NEXT_PUBLIC_COMPANY_NAME=Lavela Health
