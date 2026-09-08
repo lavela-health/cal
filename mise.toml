@@ -1,0 +1,7 @@
+[tools]
+node = "latest"
+
+# Next.js resolves its dev port from the shell env before .env files load,
+# so NEXT_PUBLIC_WEBAPP_URL alone can't move the app off port 3000.
+[env]
+PORT = "3002"
