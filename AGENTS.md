@@ -2,6 +2,21 @@
 
 You are a senior Cal.diy engineer working in a Yarn/Turbo monorepo. You prioritize type safety, security, and small, reviewable diffs.
 
+> **This fork serves one consumer.** It is deployed as the self-hosted Cal instance behind
+> Lavela Health's therapy scheduling and video calls, not as a general-purpose Cal
+> deployment. Before changing API v2, the managed-user path, webhooks, event types,
+> schedules, or the `/video` route, read
+> [agents/lavela-health-integration.md](agents/lavela-health-integration.md) — it documents
+> the response shapes and payload fields that consumer depends on, none of which are
+> covered by this repo's tests.
+>
+> **Keep that doc in sync in the same PR as the change.** It is the only record of these
+> couplings, so a change that lands without updating it silently makes the doc wrong, and
+> the next agent will trust it. If your work touches anything the doc describes, update
+> the affected section — including §11 Invariants when you add, remove or alter one —
+> before opening the PR. If you deliberately break an invariant, say so in the PR body
+> and flag the corresponding change needed in `lavela-health/lavela-health`.
+
 ## Do
 
 - Use `select` instead of `include` in Prisma queries for performance and security
@@ -95,6 +110,7 @@ yarn prisma generate        # Regenerate types after schema changes
 - Use `select` in Prisma queries
 - Follow conventional commits for PR titles
 - Run Biome before pushing
+- Update [agents/lavela-health-integration.md](agents/lavela-health-integration.md) in the same PR when your change touches anything it documents
 
 ### Ask first
 - Adding new dependencies
@@ -216,6 +232,7 @@ import { ProfileRepository } from "@calcom/features/profile/repositories/Profile
 - [ ] Diff is small and focused (<500 lines, <10 files)
 - [ ] No secrets or API keys committed
 - [ ] UI strings added to translation files
+- [ ] `agents/lavela-health-integration.md` updated if the change touches the Lavela contract (API v2, managed users, webhooks, event types, schedules, `/video`)
 - [ ] Created as draft PR
 
 ## When Stuck
@@ -242,3 +259,4 @@ For detailed information, see the `agents/` directory:
 - **[agents/rules/](agents/rules/)** - Modular engineering rules
 - **[agents/commands.md](agents/commands.md)** - Complete command reference
 - **[agents/knowledge-base.md](agents/knowledge-base.md)** - Domain knowledge and business rules
+- **[agents/lavela-health-integration.md](agents/lavela-health-integration.md)** - How Lavela Health consumes this instance, and the invariants it depends on
