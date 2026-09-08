@@ -153,6 +153,17 @@ services:
       - key: NEXT_PUBLIC_WEBAPP_URL
         value: https://cal.lavelahealth.com
 
+      # Required for the Platform dashboard to authenticate against this API.
+      # ApiAuthStrategy calls next-auth's getToken(), which derives the session
+      # cookie name from NEXTAUTH_URL: https yields
+      # "__Secure-next-auth.session-token", anything else yields
+      # "next-auth.session-token". cal-web is https and sets the __Secure- name,
+      # so without this the API looks for a cookie that does not exist and every
+      # dashboard request 401s with "No authentication method provided".
+      # It works locally only because both sides are http and the names coincide.
+      - key: NEXTAUTH_URL
+        value: https://cal.lavelahealth.com
+
       - key: LOG_LEVEL
         value: info
       - key: LOGGER_BRIDGE_LOG_LEVEL

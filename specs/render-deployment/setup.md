@@ -82,6 +82,16 @@ openssl rand -base64 24   # CALENDSO_ENCRYPTION_KEY  (32 chars, AES256)
 openssl rand -base64 24   # CALCOM_SERVICE_ACCOUNT_ENCRYPTION_KEY
 ```
 
+> **`NEXTAUTH_URL` must be set on `cal-api`, not just `cal-web`.** It is in the
+> blueprint, but it is worth knowing why: `ApiAuthStrategy` authenticates the Platform
+> dashboard with next-auth's `getToken()`, which derives the session cookie name from
+> `NEXTAUTH_URL` — `https://` yields `__Secure-next-auth.session-token`, anything else
+> yields `next-auth.session-token`. `cal-web` is https and sets the `__Secure-` name, so
+> if the API lacks the variable it looks for a cookie that does not exist and every
+> dashboard request fails with 401 "No authentication method provided". This works
+> locally only because both sides are http and the two names coincide, so it will not
+> reproduce in development.
+
 > **These three must be byte-identical on `cal-web` and `cal-api`:**
 > `NEXTAUTH_SECRET`, `CALENDSO_ENCRYPTION_KEY`, `CALCOM_SERVICE_ACCOUNT_ENCRYPTION_KEY`.
 > The API validates sessions minted by web and decrypts credentials web encrypted. A
