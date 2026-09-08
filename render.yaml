@@ -66,6 +66,16 @@ services:
       - key: NEXT_PUBLIC_API_V2_URL
         value: http://cal-api:10000/api/v2
 
+      # Diagnostic: Render resolves this to cal-api's real internal host:port.
+      # The bare service name "cal-api" does NOT resolve from cal-web, so this is
+      # the authoritative source for the address the rewrite must target. Read it
+      # with `echo $CAL_API_INTERNAL_HOSTPORT` in the cal-web shell.
+      - key: CAL_API_INTERNAL_HOSTPORT
+        fromService:
+          name: cal-api
+          type: pserv
+          property: hostport
+
       # This instance sends no email: the `emails` KILL_SWITCH feature flag is
       # enabled by migration 20260907000000_enable_emails_kill_switch, and
       # BaseEmail.sendEmail() checks it before building a transport. No SMTP
