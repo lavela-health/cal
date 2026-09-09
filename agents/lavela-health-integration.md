@@ -245,6 +245,18 @@ sends the browser back to Lavela's `/session/complete`, which routes by role.
 Admins also open `{web_url}/bookings/upcoming` from Lavela's admin home, which requires a
 real password login on this instance.
 
+Org owners and admins can also open `{web_url}/availability?client={oAuthClientId}`, which
+lists the availability of managed users provisioned through that OAuth client — the only
+place in the UI where the Development / Staging / Production split described in §12 is
+visible. The tab strip is hidden from members, and the underlying
+`viewer.availability.listTeam` procedure re-checks the caller's role and the client's
+organization server-side.
+
+This view depends on managed-user creation calling `addToOAuthClient`
+(`apps/api/v2/src/modules/users/users.repository.ts`), which writes the
+`User.platformOAuthClients` link. Nothing else in this repo reads that link and no test
+covers it — if creation stops writing it, every tab silently empties.
+
 ## 10. API surface consumed
 
 Server-side, from `Cal::Client`. Version headers are pinned per resource — the
