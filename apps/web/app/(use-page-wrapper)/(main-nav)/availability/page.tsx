@@ -1,4 +1,5 @@
 import { getServerSession } from "@calcom/features/auth/lib/getServerSession";
+import { MembershipRepository } from "@calcom/features/membership/repositories/MembershipRepository";
 import { PlatformOAuthClientRepository } from "@calcom/features/platform-oauth-client/platform-oauth-client.repository";
 import { getScheduleListItemData } from "@calcom/lib/schedules/transformers/getScheduleListItemData";
 import { MembershipRole } from "@calcom/prisma/enums";
@@ -47,13 +48,23 @@ const Page = async ({ searchParams: _searchParams }: PageProps) => {
   }
 
   const organizationId = session.user.profile?.organizationId ?? session.user.org?.id;
-  const orgRole = session.user.org?.role;
-  const canViewClients =
-    !!organizationId && (orgRole === MembershipRole.OWNER || orgRole === MembershipRole.ADMIN);
 
-  const oAuthClients = canViewClients
-    ? await new PlatformOAuthClientRepository().findByOrganizationId(organizationId)
-    : [];
+  // session.user.org is deliberately null for platform organizations
+  // (next-auth-options.ts: `profileOrg && !profileOrg.isPlatform`), so the viewer's role
+  // has to be read from the membership rather than the session.
+  const membership = organizationId
+    ? await new MembershipRepository().findRoleByUserIdAndTeamId({
+        userId: session.user.id,
+        teamId: organizationId,
+      })
+    : null;
+  const canViewClients =
+    membership?.role === MembershipRole.OWNER || membership?.role === MembershipRole.ADMIN;
+
+  const oAuthClients =
+    canViewClients && organizationId
+      ? await new PlatformOAuthClientRepository().findByOrganizationId(organizationId)
+      : [];
 
   const requestedClientId = typeof searchParams?.client === "string" ? searchParams.client : undefined;
   // An unknown id degrades to the schedule list rather than erroring, so a bookmark kept
