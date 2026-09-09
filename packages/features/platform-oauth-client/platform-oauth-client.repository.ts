@@ -1,8 +1,9 @@
-import { captureException } from "@sentry/nextjs";
-
 import prisma from "@calcom/prisma";
-
-import type { IPlatformOAuthClientRepository } from "./platform-oauth-client.repository.interface";
+import { captureException } from "@sentry/nextjs";
+import type {
+  IPlatformOAuthClientRepository,
+  PlatformOAuthClientListItem,
+} from "./platform-oauth-client.repository.interface";
 
 export class PlatformOAuthClientRepository implements IPlatformOAuthClientRepository {
   async getByUserId(userId: number) {
@@ -15,6 +16,19 @@ export class PlatformOAuthClientRepository implements IPlatformOAuthClientReposi
             },
           },
         },
+      });
+    } catch (err) {
+      captureException(err);
+      throw err;
+    }
+  }
+
+  async findByOrganizationIds(organizationIds: number[]): Promise<PlatformOAuthClientListItem[]> {
+    try {
+      return prisma.platformOAuthClient.findMany({
+        where: { organizationId: { in: organizationIds } },
+        select: { id: true, name: true },
+        orderBy: { createdAt: "asc" },
       });
     } catch (err) {
       captureException(err);

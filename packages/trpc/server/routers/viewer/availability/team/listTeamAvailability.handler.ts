@@ -5,9 +5,8 @@ import { buildDateRanges } from "@calcom/features/schedules/lib/date-ranges";
 import { UserRepository } from "@calcom/features/users/repositories/UserRepository";
 import { prisma } from "@calcom/prisma";
 import { Prisma } from "@calcom/prisma/client";
-
+import { MembershipRole } from "@calcom/prisma/enums";
 import { TRPCError } from "@trpc/server";
-
 import type { TrpcSessionUser } from "../../../../types";
 import type { TListTeamAvailaiblityScheme } from "./listTeamAvailability.schema";
 
@@ -18,6 +17,55 @@ type GetOptions = {
   input: TListTeamAvailaiblityScheme;
 };
 
+function buildOAuthClientFilter(oAuthClientId?: string) {
+  if (!oAuthClientId) return {};
+  return { user: { platformOAuthClients: { some: { id: oAuthClientId } } } };
+}
+
+/**
+ * Resolves the organization from the OAuth client rather than from the session, and returns it so
+ * the caller can scope the listing with it.
+ *
+ * The session cannot be trusted here: `session.upId` is baked into the JWT at sign-in, so a token
+ * minted before the user joined the organization resolves to their personal profile and reports no
+ * organization at all. `setup-platform-org.ts` promotes an existing user, so this is the normal
+ * state right after the org is created, not an edge case.
+ *
+ * Deriving the organization from the client keeps authorization honest — membership is still
+ * checked against the organization that owns the client, so a caller can only read clients
+ * belonging to an organization they administer.
+ */
+async function resolveOAuthClientOrganization({
+  userId,
+  oAuthClientId,
+}: {
+  userId: number;
+  oAuthClientId: string;
+}): Promise<number> {
+  const client = await prisma.platformOAuthClient.findUnique({
+    where: { id: oAuthClientId },
+    select: { organizationId: true },
+  });
+
+  if (!client) {
+    throw new TRPCError({ code: "NOT_FOUND", message: `OAuth client ${oAuthClientId} not found.` });
+  }
+
+  const membership = await prisma.membership.findUnique({
+    where: { userId_teamId: { userId, teamId: client.organizationId } },
+    select: { role: true },
+  });
+
+  if (!membership || (membership.role !== MembershipRole.OWNER && membership.role !== MembershipRole.ADMIN)) {
+    throw new TRPCError({
+      code: "FORBIDDEN",
+      message: "Only organization owners and admins can filter availability by OAuth client.",
+    });
+  }
+
+  return client.organizationId;
+}
+
 async function getTeamMembers({
   teamId,
   organizationId,
@@ -25,6 +73,7 @@ async function getTeamMembers({
   cursor,
   limit,
   searchString,
+  oAuthClientId,
 }: {
   teamId?: number;
   organizationId: number | null;
@@ -32,12 +81,14 @@ async function getTeamMembers({
   cursor: number | null | undefined;
   limit: number;
   searchString?: string | null;
+  oAuthClientId?: string;
 }) {
   const memberships = await prisma.membership.findMany({
     where: {
       teamId: {
         in: teamId ? [teamId] : teamIds,
       },
+      ...buildOAuthClientFilter(oAuthClientId),
       ...(searchString
         ? {
             OR: [
@@ -186,7 +237,13 @@ async function getInfoForAllTeams({ ctx, input }: GetOptions) {
 
 export const listTeamAvailabilityHandler = async ({ ctx, input }: GetOptions) => {
   const { cursor, limit, searchString } = input;
-  const teamId = input.teamId || ctx.user.organizationId;
+  // The client's own organization wins over the session's, which may be stale.
+  const teamId = input.oAuthClientId
+    ? await resolveOAuthClientOrganization({
+        userId: ctx.user.id,
+        oAuthClientId: input.oAuthClientId,
+      })
+    : input.teamId || ctx.user.organizationId;
 
   let teamMembers: Member[] = [];
   let totalTeamMembers = 0;
@@ -216,6 +273,7 @@ export const listTeamAvailabilityHandler = async ({ ctx, input }: GetOptions) =>
       totalTeamMembers = await prisma.membership.count({
         where: {
           teamId: teamId,
+          ...buildOAuthClientFilter(input.oAuthClientId),
           ...(searchString
             ? {
                 OR: [
@@ -235,11 +293,12 @@ export const listTeamAvailabilityHandler = async ({ ctx, input }: GetOptions) =>
         limit,
         organizationId: ctx.user.organizationId,
         searchString,
+        oAuthClientId: input.oAuthClientId,
       });
     }
   }
 
-  let nextCursor: typeof cursor | undefined = undefined;
+  let nextCursor: typeof cursor | undefined;
   if (teamMembers && teamMembers.length > limit) {
     const nextItem = teamMembers.pop();
     nextCursor = nextItem?.id;

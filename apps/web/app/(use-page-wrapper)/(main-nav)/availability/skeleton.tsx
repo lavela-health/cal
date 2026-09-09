@@ -12,7 +12,7 @@ export default function AvailabilityLoader() {
     <ShellMainAppDir
       heading={t("availability")}
       subtitle={t("configure_availability")}
-      CTA={<AvailabilityCTA />}>
+      CTA={<AvailabilityCTA oAuthClients={[]} />}>
       <SkeletonLoader />
     </ShellMainAppDir>
   );
