@@ -188,9 +188,17 @@ Selection writes `?client=<id>`; absent means my availability. Tabs are therefor
 linkable and survive a refresh.
 
 When the viewer is not `OWNER` or `ADMIN`, `page.tsx` passes an empty client list and the
-strip does not render, leaving today's exact UI. `session.user.org.role` carries the
-viewer's `MembershipRole` (`packages/types/next-auth.d.ts:38`), so this needs no round
-trip.
+strip does not render, leaving today's exact UI.
+
+The role must be read from the membership, **not** from `session.user.org.role`.
+`next-auth-options.ts` sets `org` only when `profileOrg && !profileOrg.isPlatform`, so it
+is always `null` on this instance — the org created by `setup-platform-org.ts` has
+`isPlatform: true`. `page.tsx` therefore calls
+`MembershipRepository.findRoleByUserIdAndTeamId`. The org id itself is fine from the
+session: `session.user.profile.organizationId` is populated for platform users.
+
+The tRPC handler is unaffected — `ctx.user.organizationId` derives from
+`user.profile?.organization?.id` (`userFromSessionUtils.ts:81`), not from the `org` claim.
 
 ### 4.4 `page.tsx`
 
