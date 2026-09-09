@@ -23,10 +23,10 @@ export class PlatformOAuthClientRepository implements IPlatformOAuthClientReposi
     }
   }
 
-  async findByOrganizationId(organizationId: number): Promise<PlatformOAuthClientListItem[]> {
+  async findByOrganizationIds(organizationIds: number[]): Promise<PlatformOAuthClientListItem[]> {
     try {
       return prisma.platformOAuthClient.findMany({
-        where: { organizationId },
+        where: { organizationId: { in: organizationIds } },
         select: { id: true, name: true },
         orderBy: { createdAt: "asc" },
       });

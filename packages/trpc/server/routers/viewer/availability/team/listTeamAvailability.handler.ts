@@ -23,29 +23,36 @@ function buildOAuthClientFilter(oAuthClientId?: string) {
 }
 
 /**
- * The tab strip is hidden from non-admins in the UI, but that is presentation only — without
- * this check any managed user with a session could pass another environment's client id and
- * read every provider's schedule. The organization check is equally load-bearing: without it
- * an admin of one organization could read another organization's clients.
+ * Resolves the organization from the OAuth client rather than from the session, and returns it so
+ * the caller can scope the listing with it.
+ *
+ * The session cannot be trusted here: `session.upId` is baked into the JWT at sign-in, so a token
+ * minted before the user joined the organization resolves to their personal profile and reports no
+ * organization at all. `setup-platform-org.ts` promotes an existing user, so this is the normal
+ * state right after the org is created, not an edge case.
+ *
+ * Deriving the organization from the client keeps authorization honest — membership is still
+ * checked against the organization that owns the client, so a caller can only read clients
+ * belonging to an organization they administer.
  */
-async function assertCanFilterByOAuthClient({
+async function resolveOAuthClientOrganization({
   userId,
-  teamId,
   oAuthClientId,
 }: {
   userId: number;
-  teamId: number | null;
   oAuthClientId: string;
-}) {
-  if (!teamId) {
-    throw new TRPCError({
-      code: "FORBIDDEN",
-      message: "Filtering availability by OAuth client requires an organization.",
-    });
+}): Promise<number> {
+  const client = await prisma.platformOAuthClient.findUnique({
+    where: { id: oAuthClientId },
+    select: { organizationId: true },
+  });
+
+  if (!client) {
+    throw new TRPCError({ code: "NOT_FOUND", message: `OAuth client ${oAuthClientId} not found.` });
   }
 
   const membership = await prisma.membership.findUnique({
-    where: { userId_teamId: { userId, teamId } },
+    where: { userId_teamId: { userId, teamId: client.organizationId } },
     select: { role: true },
   });
 
@@ -56,17 +63,7 @@ async function assertCanFilterByOAuthClient({
     });
   }
 
-  const client = await prisma.platformOAuthClient.findFirst({
-    where: { id: oAuthClientId, organizationId: teamId },
-    select: { id: true },
-  });
-
-  if (!client) {
-    throw new TRPCError({
-      code: "NOT_FOUND",
-      message: `OAuth client ${oAuthClientId} does not belong to this organization.`,
-    });
-  }
+  return client.organizationId;
 }
 
 async function getTeamMembers({
@@ -240,15 +237,13 @@ async function getInfoForAllTeams({ ctx, input }: GetOptions) {
 
 export const listTeamAvailabilityHandler = async ({ ctx, input }: GetOptions) => {
   const { cursor, limit, searchString } = input;
-  const teamId = input.teamId || ctx.user.organizationId;
-
-  if (input.oAuthClientId) {
-    await assertCanFilterByOAuthClient({
-      userId: ctx.user.id,
-      teamId,
-      oAuthClientId: input.oAuthClientId,
-    });
-  }
+  // The client's own organization wins over the session's, which may be stale.
+  const teamId = input.oAuthClientId
+    ? await resolveOAuthClientOrganization({
+        userId: ctx.user.id,
+        oAuthClientId: input.oAuthClientId,
+      })
+    : input.teamId || ctx.user.organizationId;
 
   let teamMembers: Member[] = [];
   let totalTeamMembers = 0;

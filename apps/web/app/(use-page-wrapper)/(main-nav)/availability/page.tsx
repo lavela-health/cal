@@ -47,24 +47,18 @@ const Page = async ({ searchParams: _searchParams }: PageProps) => {
     return redirect("/auth/login");
   }
 
-  const organizationId = session.user.profile?.organizationId ?? session.user.org?.id;
+  // Resolved from membership, not from the session. `session.user.org` is always null for
+  // platform organizations, and `session.user.profile` falls back to a personal profile with
+  // no organization whenever the JWT predates the user joining one — which is the normal state
+  // after `setup-platform-org.ts` promotes an existing user.
+  const adminOrganizationIds = await new MembershipRepository().findTeamIdsByUserIdAndRoles({
+    userId: session.user.id,
+    roles: [MembershipRole.OWNER, MembershipRole.ADMIN],
+  });
 
-  // session.user.org is deliberately null for platform organizations
-  // (next-auth-options.ts: `profileOrg && !profileOrg.isPlatform`), so the viewer's role
-  // has to be read from the membership rather than the session.
-  const membership = organizationId
-    ? await new MembershipRepository().findRoleByUserIdAndTeamId({
-        userId: session.user.id,
-        teamId: organizationId,
-      })
-    : null;
-  const canViewClients =
-    membership?.role === MembershipRole.OWNER || membership?.role === MembershipRole.ADMIN;
-
-  const oAuthClients =
-    canViewClients && organizationId
-      ? await new PlatformOAuthClientRepository().findByOrganizationId(organizationId)
-      : [];
+  const oAuthClients = adminOrganizationIds.length
+    ? await new PlatformOAuthClientRepository().findByOrganizationIds(adminOrganizationIds)
+    : [];
 
   const requestedClientId = typeof searchParams?.client === "string" ? searchParams.client : undefined;
   // An unknown id degrades to the schedule list rather than erroring, so a bookmark kept

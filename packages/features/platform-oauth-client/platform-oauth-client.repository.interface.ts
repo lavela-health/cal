@@ -4,5 +4,5 @@ export type PlatformOAuthClientListItem = Pick<PlatformOAuthClient, "id" | "name
 
 export interface IPlatformOAuthClientRepository {
   getByUserId(userId: number): Promise<PlatformOAuthClient | null>;
-  findByOrganizationId(organizationId: number): Promise<PlatformOAuthClientListItem[]>;
+  findByOrganizationIds(organizationIds: number[]): Promise<PlatformOAuthClientListItem[]>;
 }
