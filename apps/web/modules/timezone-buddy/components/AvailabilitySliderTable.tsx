@@ -78,7 +78,7 @@ function AvailabilitySliderTableContent({ oAuthClientId }: AvailabilitySliderTab
     const cols: ColumnDef<SliderUser>[] = [
       {
         id: "member",
-        accessorFn: (data) => data.username,
+        accessorFn: (data) => data.name,
         enableHiding: false,
         enableSorting: false,
         header: "Member",
@@ -98,7 +98,7 @@ function AvailabilitySliderTableContent({ oAuthClientId }: AvailabilitySliderTab
               />
               <div className="">
                 <div className="text-emphasis max-w-64 truncate text-sm font-medium" title={email}>
-                  {username || "No username"}
+                  {name || username || t("no_name")}
                 </div>
                 <div className="text-subtle text-xs leading-none">{timeZone}</div>
               </div>
@@ -106,7 +106,7 @@ function AvailabilitySliderTableContent({ oAuthClientId }: AvailabilitySliderTab
           );
         },
         filterFn: (row, id, value) => {
-          return row.original.username?.toLowerCase().includes(value.toLowerCase()) || false;
+          return row.original.name?.toLowerCase().includes(value.toLowerCase()) || false;
         },
       },
       {
@@ -172,7 +172,7 @@ function AvailabilitySliderTableContent({ oAuthClientId }: AvailabilitySliderTab
     ];
 
     return cols;
-  }, [browsingDate]);
+  }, [browsingDate, t]);
 
   //we must flatten the array of arrays from the useInfiniteQuery hook
   const flatData = useMemo(() => data?.pages?.flatMap((page) => page.rows) ?? [], [data]) as SliderUser[];
