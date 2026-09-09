@@ -31,6 +31,7 @@ complete and have zero callers anywhere in the repo.
 
 | Question              | Decision                                                                                                     |
 | --------------------- | ------------------------------------------------------------------------------------------------------------ |
+| Tab order             | `orderBy: { createdAt: "asc" }` — creation order, deterministic. Resolves Appendix B.1                         |
 | Grouping unit         | Managed users, via the `User.platformOAuthClients` M2M. Not teams — none exist. See [§1](#1-why-users-not-teams) |
 | Filter location       | An optional `oAuthClientId` on the existing `listTeam` procedure, not a new procedure. [Appendix A](#appendix-a--rejected-alternatives) |
 | Navigation            | One flat toggle strip: `My availability \| Development \| Staging \| Production`                              |
@@ -165,7 +166,8 @@ Restored with edits (272 lines before changes):
 - Replace the `UpgradeTeamTip` empty state. It renders an `UpgradeTip` with `plan="team"`
   and a *Create team* button pointing at `/settings/teams/new` — meaningless when the real
   condition is "this OAuth client has no managed users yet". A plain `EmptyScreen`
-  replaces it.
+  replaces it, adding two keys to `packages/i18n/locales/en/common.json`:
+  `no_managed_users_for_client` and `no_managed_users_for_client_description`.
 - Add an `oAuthClientId` prop, passed into the `listTeam` infinite query.
 - Fold the client id into `DataTableProvider`'s `tableIdentifier`, which is currently just
   `pathname`. All tabs share a pathname, so as written the search term would persist
@@ -178,7 +180,7 @@ Restored with edits (272 lines before changes):
 `NewScheduleButton`. It regains a `ToggleGroup`: *My availability* first, then one entry
 per client, in the order the repository returns them.
 
-No new translation keys. `my_availability` already exists
+No new translation keys for the strip itself. `my_availability` already exists
 (`packages/i18n/locales/en/common.json:2940`), and client names are user-supplied data
 that is never translated. `team_availability` (line 2941) stays unused, as it is today.
 
@@ -278,9 +280,9 @@ always about one environment, and admins' own availability is already on the def
 
 ## Appendix B — open questions
 
-1. **Tab order.** The repository returns clients in insertion order, which is likely
-   Development, Staging, Production — but nothing guarantees it. If the order matters
-   visually, it needs an explicit sort, and `name` is the only sensible key available.
+1. ~~**Tab order.**~~ Resolved during planning: `findByOrganizationId` sorts by
+   `createdAt` ascending, which is deterministic and matches the order the clients were
+   created in.
 2. **A user linked to more than one client.** The schema permits it; nothing in the
    creation path produces it today. Such a user would appear under every client they are
    linked to. This is the correct behaviour, but worth knowing before it is seen.
