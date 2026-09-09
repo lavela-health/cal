@@ -69,4 +69,47 @@ describe("listTeamAvailabilityHandler — OAuth client filter", () => {
     expect(prismaMock.membership.findMany.mock.calls[0][0].where.user).toBeUndefined();
     expect(prismaMock.membership.count.mock.calls[0][0].where.user).toBeUndefined();
   });
+
+  it("rejects a MEMBER who passes an oAuthClientId", async () => {
+    prismaMock.membership.findUnique.mockResolvedValue({ id: 1, role: "MEMBER" });
+
+    await expect(
+      listTeamAvailabilityHandler({
+        ctx: { user: ctxUser() },
+        input: input({ oAuthClientId: CLIENT_ID }),
+      })
+    ).rejects.toThrow(/owners and admins/i);
+  });
+
+  it("rejects a client that belongs to a different organization", async () => {
+    prismaMock.platformOAuthClient.findFirst.mockResolvedValue(null);
+
+    await expect(
+      listTeamAvailabilityHandler({
+        ctx: { user: ctxUser() },
+        input: input({ oAuthClientId: CLIENT_ID }),
+      })
+    ).rejects.toThrow(/does not belong/i);
+  });
+
+  it("scopes the client lookup to the caller's organization", async () => {
+    await listTeamAvailabilityHandler({
+      ctx: { user: ctxUser() },
+      input: input({ oAuthClientId: CLIENT_ID }),
+    });
+
+    expect(prismaMock.platformOAuthClient.findFirst).toHaveBeenCalledWith({
+      where: { id: CLIENT_ID, organizationId: ORG_ID },
+      select: { id: true },
+    });
+  });
+
+  it("runs no authorization queries when no client is given", async () => {
+    await listTeamAvailabilityHandler({
+      ctx: { user: ctxUser() },
+      input: input(),
+    });
+
+    expect(prismaMock.platformOAuthClient.findFirst).not.toHaveBeenCalled();
+  });
 });

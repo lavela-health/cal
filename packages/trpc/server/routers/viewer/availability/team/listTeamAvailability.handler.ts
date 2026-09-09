@@ -5,6 +5,7 @@ import { buildDateRanges } from "@calcom/features/schedules/lib/date-ranges";
 import { UserRepository } from "@calcom/features/users/repositories/UserRepository";
 import { prisma } from "@calcom/prisma";
 import { Prisma } from "@calcom/prisma/client";
+import { MembershipRole } from "@calcom/prisma/enums";
 
 import { TRPCError } from "@trpc/server";
 
@@ -21,6 +22,53 @@ type GetOptions = {
 function buildOAuthClientFilter(oAuthClientId?: string) {
   if (!oAuthClientId) return {};
   return { user: { platformOAuthClients: { some: { id: oAuthClientId } } } };
+}
+
+/**
+ * The tab strip is hidden from non-admins in the UI, but that is presentation only — without
+ * this check any managed user with a session could pass another environment's client id and
+ * read every provider's schedule. The organization check is equally load-bearing: without it
+ * an admin of one organization could read another organization's clients.
+ */
+async function assertCanFilterByOAuthClient({
+  userId,
+  teamId,
+  oAuthClientId,
+}: {
+  userId: number;
+  teamId: number | null;
+  oAuthClientId: string;
+}) {
+  if (!teamId) {
+    throw new TRPCError({
+      code: "FORBIDDEN",
+      message: "Filtering availability by OAuth client requires an organization.",
+    });
+  }
+
+  const membership = await prisma.membership.findUnique({
+    where: { userId_teamId: { userId, teamId } },
+    select: { role: true },
+  });
+
+  if (!membership || (membership.role !== MembershipRole.OWNER && membership.role !== MembershipRole.ADMIN)) {
+    throw new TRPCError({
+      code: "FORBIDDEN",
+      message: "Only organization owners and admins can filter availability by OAuth client.",
+    });
+  }
+
+  const client = await prisma.platformOAuthClient.findFirst({
+    where: { id: oAuthClientId, organizationId: teamId },
+    select: { id: true },
+  });
+
+  if (!client) {
+    throw new TRPCError({
+      code: "NOT_FOUND",
+      message: `OAuth client ${oAuthClientId} does not belong to this organization.`,
+    });
+  }
 }
 
 async function getTeamMembers({
@@ -195,6 +243,14 @@ async function getInfoForAllTeams({ ctx, input }: GetOptions) {
 export const listTeamAvailabilityHandler = async ({ ctx, input }: GetOptions) => {
   const { cursor, limit, searchString } = input;
   const teamId = input.teamId || ctx.user.organizationId;
+
+  if (input.oAuthClientId) {
+    await assertCanFilterByOAuthClient({
+      userId: ctx.user.id,
+      teamId,
+      oAuthClientId: input.oAuthClientId,
+    });
+  }
 
   let teamMembers: Member[] = [];
   let totalTeamMembers = 0;
