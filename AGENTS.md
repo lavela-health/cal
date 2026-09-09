@@ -102,6 +102,40 @@ yarn prisma generate        # Regenerate types after schema changes
 ```
 
 
+## Ops Scripts (production)
+
+Two shapes, depending on whether the change is worth keeping.
+
+**Committed and re-runnable** — `scripts/<name>.ts`, plus an entry in
+`packages/prisma/package.json` so it runs as `yarn workspace @calcom/prisma <name>`.
+Take inputs from env vars, make it idempotent, and state in the file header why it is
+safe against production. See `scripts/setup-platform-org.ts` for the reference shape.
+Needs a deploy before it exists on Render.
+
+**One-off, pasted into the Render shell** — when the fix is needed now, with no deploy:
+
+- Run it in **cal-web**, not cal-api. Both read `DATABASE_URL` from the same
+  `cal-postgres`, but cal-web's image copies the full root `node_modules`; cal-api is a
+  `pserv` on a slimmer alpine image.
+- The working directory is **`/calcom`**. Both services are `runtime: image` (prebuilt
+  Docker images with `WORKDIR /calcom`), so Render's native `/opt/render/project/src`
+  path does not exist.
+- Write the file **inside `/calcom`**, never `/tmp`. Node resolves `require()` from the
+  script file's own directory, so `/tmp/x.js` cannot see `/calcom/node_modules` no
+  matter what you `cd` to first.
+- Talk to the database through `pg` directly
+  (`new Client({ connectionString: process.env.DATABASE_URL })`). It is hoisted to the
+  root `node_modules` and needs no build step. The generated Prisma client sits at
+  `packages/prisma/generated/prisma` and requires the `@prisma/adapter-pg` driver
+  adapter, which is not worth wiring up in a paste-in snippet.
+
+### Raw SQL table names
+
+`User` maps to `users` via `@@map`; most other models keep their PascalCase name and so
+need double quotes in SQL — `"SecondaryEmail"`, `"VerificationToken"`. Check for `@@map`
+in `packages/prisma/schema.prisma` before writing raw SQL.
+
+
 ## Boundaries
 
 ### Always do
