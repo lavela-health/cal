@@ -2939,6 +2939,8 @@
   "member_removed": "Member removed",
   "my_availability": "My availability",
   "team_availability": "Team availability",
+  "no_managed_users_for_client": "No managed users yet",
+  "no_managed_users_for_client_description": "No users have been provisioned through this OAuth client.",
   "instant_meeting_availability": "Instant meeting availability",
   "backup_code": "Backup code",
   "backup_codes": "Backup codes",
