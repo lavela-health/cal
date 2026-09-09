@@ -12,6 +12,11 @@ import { unstable_cache } from "next/cache";
 import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { AvailabilityCTA, AvailabilityList } from "~/availability/availability-view";
+import {
+  MY_AVAILABILITY,
+  resolveActiveOAuthClient,
+  sortOAuthClientsByEnvironment,
+} from "~/availability/lib/sort-oauth-clients";
 import { AvailabilitySliderTable } from "~/timezone-buddy/components/AvailabilitySliderTable";
 import { ShellMainAppDir } from "../ShellMainAppDir";
 
@@ -56,21 +61,24 @@ const Page = async ({ searchParams: _searchParams }: PageProps) => {
     roles: [MembershipRole.OWNER, MembershipRole.ADMIN],
   });
 
-  const oAuthClients = adminOrganizationIds.length
-    ? await new PlatformOAuthClientRepository().findByOrganizationIds(adminOrganizationIds)
-    : [];
+  const oAuthClients = sortOAuthClientsByEnvironment(
+    adminOrganizationIds.length
+      ? await new PlatformOAuthClientRepository().findByOrganizationIds(adminOrganizationIds)
+      : []
+  );
 
   const requestedClientId = typeof searchParams?.client === "string" ? searchParams.client : undefined;
-  // An unknown id degrades to the schedule list rather than erroring, so a bookmark kept
-  // after a client is deleted still opens the page.
-  const activeClient = oAuthClients.find((client) => client.id === requestedClientId);
+  // Production is the default, so a bare /availability and a bookmark for a since-deleted
+  // client both land there. Only the explicit sentinel shows the viewer's own schedules.
+  const activeClient = resolveActiveOAuthClient({ clients: oAuthClients, requestedClientId });
+  const activeValue = activeClient?.id ?? MY_AVAILABILITY;
 
   if (activeClient) {
     return (
       <ShellMainAppDir
         heading={t("availability")}
         subtitle={t("configure_availability")}
-        CTA={<AvailabilityCTA oAuthClients={oAuthClients} />}>
+        CTA={<AvailabilityCTA oAuthClients={oAuthClients} activeValue={activeValue} />}>
         <AvailabilitySliderTable oAuthClientId={activeClient.id} />
       </ShellMainAppDir>
     );
@@ -89,7 +97,7 @@ const Page = async ({ searchParams: _searchParams }: PageProps) => {
     <ShellMainAppDir
       heading={t("availability")}
       subtitle={t("configure_availability")}
-      CTA={<AvailabilityCTA oAuthClients={oAuthClients} />}>
+      CTA={<AvailabilityCTA oAuthClients={oAuthClients} activeValue={activeValue} />}>
       <AvailabilityList availabilities={availabilities ?? { schedules: [] }} />
     </ShellMainAppDir>
   );

@@ -18,11 +18,12 @@ import { revalidateAvailabilityList } from "app/(use-page-wrapper)/(main-nav)/av
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
-
-const MY_AVAILABILITY = "mine";
+import { MY_AVAILABILITY } from "~/availability/lib/sort-oauth-clients";
 
 type AvailabilityCTAProps = {
   oAuthClients: { id: string; name: string }[];
+  /** Resolved server-side so the highlighted tab always matches what is rendered. */
+  activeValue: string;
 };
 
 type AvailabilityListProps = {
@@ -186,7 +187,7 @@ export function AvailabilityList({ availabilities }: AvailabilityListProps) {
   );
 }
 
-export const AvailabilityCTA = ({ oAuthClients }: AvailabilityCTAProps) => {
+export const AvailabilityCTA = ({ oAuthClients, activeValue }: AvailabilityCTAProps) => {
   const searchParams = useCompatSearchParams();
   const router = useRouter();
   const pathname = usePathname();
@@ -196,13 +197,10 @@ export const AvailabilityCTA = ({ oAuthClients }: AvailabilityCTAProps) => {
     if (!pathname) return;
 
     const params = new URLSearchParams(searchParams.toString());
-    if (value === MY_AVAILABILITY) {
-      params.delete("client");
-    } else {
-      params.set("client", value);
-    }
-    const query = params.toString();
-    router.push(query ? `${pathname}?${query}` : pathname);
+    // Set the sentinel rather than deleting the param: an absent client defaults to
+    // production, which would bounce the viewer straight back off their own schedules.
+    params.set("client", value);
+    router.push(`${pathname}?${params.toString()}`);
   };
 
   return (
@@ -210,11 +208,11 @@ export const AvailabilityCTA = ({ oAuthClients }: AvailabilityCTAProps) => {
       {oAuthClients.length > 0 && (
         <ToggleGroup
           className="hidden md:block"
-          value={searchParams.get("client") ?? MY_AVAILABILITY}
+          value={activeValue}
           onValueChange={onValueChange}
           options={[
-            { value: MY_AVAILABILITY, label: t("my_availability") },
             ...oAuthClients.map((client) => ({ value: client.id, label: client.name })),
+            { value: MY_AVAILABILITY, label: t("my_availability") },
           ]}
         />
       )}
