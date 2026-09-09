@@ -18,6 +18,11 @@ type GetOptions = {
   input: TListTeamAvailaiblityScheme;
 };
 
+function buildOAuthClientFilter(oAuthClientId?: string) {
+  if (!oAuthClientId) return {};
+  return { user: { platformOAuthClients: { some: { id: oAuthClientId } } } };
+}
+
 async function getTeamMembers({
   teamId,
   organizationId,
@@ -25,6 +30,7 @@ async function getTeamMembers({
   cursor,
   limit,
   searchString,
+  oAuthClientId,
 }: {
   teamId?: number;
   organizationId: number | null;
@@ -32,12 +38,14 @@ async function getTeamMembers({
   cursor: number | null | undefined;
   limit: number;
   searchString?: string | null;
+  oAuthClientId?: string;
 }) {
   const memberships = await prisma.membership.findMany({
     where: {
       teamId: {
         in: teamId ? [teamId] : teamIds,
       },
+      ...buildOAuthClientFilter(oAuthClientId),
       ...(searchString
         ? {
             OR: [
@@ -216,6 +224,7 @@ export const listTeamAvailabilityHandler = async ({ ctx, input }: GetOptions) =>
       totalTeamMembers = await prisma.membership.count({
         where: {
           teamId: teamId,
+          ...buildOAuthClientFilter(input.oAuthClientId),
           ...(searchString
             ? {
                 OR: [
@@ -235,6 +244,7 @@ export const listTeamAvailabilityHandler = async ({ ctx, input }: GetOptions) =>
         limit,
         organizationId: ctx.user.organizationId,
         searchString,
+        oAuthClientId: input.oAuthClientId,
       });
     }
   }
