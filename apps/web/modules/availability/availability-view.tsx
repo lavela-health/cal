@@ -3,19 +3,27 @@
 import type { BulkUpdatParams } from "@calcom/features/eventtypes/components/BulkEditDefaultForEventsModal";
 import { BulkEditDefaultForEventsModal } from "@calcom/features/eventtypes/components/BulkEditDefaultForEventsModal";
 import { ScheduleListItem } from "@calcom/features/schedules/components/ScheduleListItem";
+import { useCompatSearchParams } from "@calcom/lib/hooks/useCompatSearchParams";
 import { useLocale } from "@calcom/lib/hooks/useLocale";
 import { HttpError } from "@calcom/lib/http-error";
 import type { RouterOutputs } from "@calcom/trpc/react";
 import { trpc } from "@calcom/trpc/react";
 import useMeQuery from "@calcom/trpc/react/hooks/useMeQuery";
 import { EmptyScreen } from "@calcom/ui/components/empty-screen";
+import { ToggleGroup } from "@calcom/ui/components/form";
 import { showToast } from "@calcom/ui/components/toast";
 import { NewScheduleButton } from "@calcom/web/modules/schedules/components/NewScheduleButton";
 import { useAutoAnimate } from "@formkit/auto-animate/react";
 import { revalidateAvailabilityList } from "app/(use-page-wrapper)/(main-nav)/availability/actions";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
+
+const MY_AVAILABILITY = "mine";
+
+type AvailabilityCTAProps = {
+  oAuthClients: { id: string; name: string }[];
+};
 
 type AvailabilityListProps = {
   availabilities: RouterOutputs["viewer"]["availability"]["list"];
@@ -178,9 +186,38 @@ export function AvailabilityList({ availabilities }: AvailabilityListProps) {
   );
 }
 
-export const AvailabilityCTA = () => {
+export const AvailabilityCTA = ({ oAuthClients }: AvailabilityCTAProps) => {
+  const searchParams = useCompatSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
+  const { t } = useLocale();
+
+  const onValueChange = (value: string) => {
+    if (!pathname) return;
+
+    const params = new URLSearchParams(searchParams.toString());
+    if (value === MY_AVAILABILITY) {
+      params.delete("client");
+    } else {
+      params.set("client", value);
+    }
+    const query = params.toString();
+    router.push(query ? `${pathname}?${query}` : pathname);
+  };
+
   return (
     <div className="flex items-center gap-2">
+      {oAuthClients.length > 0 && (
+        <ToggleGroup
+          className="hidden md:block"
+          value={searchParams.get("client") ?? MY_AVAILABILITY}
+          onValueChange={onValueChange}
+          options={[
+            { value: MY_AVAILABILITY, label: t("my_availability") },
+            ...oAuthClients.map((client) => ({ value: client.id, label: client.name })),
+          ]}
+        />
+      )}
       <NewScheduleButton />
     </div>
   );

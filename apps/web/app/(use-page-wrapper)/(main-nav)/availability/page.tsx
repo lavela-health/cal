@@ -1,5 +1,7 @@
 import { getServerSession } from "@calcom/features/auth/lib/getServerSession";
+import { PlatformOAuthClientRepository } from "@calcom/features/platform-oauth-client/platform-oauth-client.repository";
 import { getScheduleListItemData } from "@calcom/lib/schedules/transformers/getScheduleListItemData";
+import { MembershipRole } from "@calcom/prisma/enums";
 import { availabilityRouter } from "@calcom/trpc/server/routers/viewer/availability/_router";
 import { buildLegacyRequest } from "@lib/buildLegacyCtx";
 import { createRouterCaller, getTRPCContext } from "app/_trpc/context";
@@ -9,6 +11,7 @@ import { unstable_cache } from "next/cache";
 import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { AvailabilityCTA, AvailabilityList } from "~/availability/availability-view";
+import { AvailabilitySliderTable } from "~/timezone-buddy/components/AvailabilitySliderTable";
 import { ShellMainAppDir } from "../ShellMainAppDir";
 
 export const generateMetadata = async () => {
@@ -43,6 +46,31 @@ const Page = async ({ searchParams: _searchParams }: PageProps) => {
     return redirect("/auth/login");
   }
 
+  const organizationId = session.user.profile?.organizationId ?? session.user.org?.id;
+  const orgRole = session.user.org?.role;
+  const canViewClients =
+    !!organizationId && (orgRole === MembershipRole.OWNER || orgRole === MembershipRole.ADMIN);
+
+  const oAuthClients = canViewClients
+    ? await new PlatformOAuthClientRepository().findByOrganizationId(organizationId)
+    : [];
+
+  const requestedClientId = typeof searchParams?.client === "string" ? searchParams.client : undefined;
+  // An unknown id degrades to the schedule list rather than erroring, so a bookmark kept
+  // after a client is deleted still opens the page.
+  const activeClient = oAuthClients.find((client) => client.id === requestedClientId);
+
+  if (activeClient) {
+    return (
+      <ShellMainAppDir
+        heading={t("availability")}
+        subtitle={t("configure_availability")}
+        CTA={<AvailabilityCTA oAuthClients={oAuthClients} />}>
+        <AvailabilitySliderTable oAuthClientId={activeClient.id} />
+      </ShellMainAppDir>
+    );
+  }
+
   const cachedAvailabilities = await getCachedAvailabilities(_headers, _cookies);
 
   // Transform the data to ensure startTime, endTime, and date are Date objects
@@ -56,7 +84,7 @@ const Page = async ({ searchParams: _searchParams }: PageProps) => {
     <ShellMainAppDir
       heading={t("availability")}
       subtitle={t("configure_availability")}
-      CTA={<AvailabilityCTA />}>
+      CTA={<AvailabilityCTA oAuthClients={oAuthClients} />}>
       <AvailabilityList availabilities={availabilities ?? { schedules: [] }} />
     </ShellMainAppDir>
   );

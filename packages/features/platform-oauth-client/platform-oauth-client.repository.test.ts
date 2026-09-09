@@ -1,7 +1,5 @@
 import prismaMock from "@calcom/testing/lib/__mocks__/prismaMock";
-
 import { describe, expect, it } from "vitest";
-
 import { PlatformOAuthClientRepository } from "./platform-oauth-client.repository";
 
 describe("PlatformOAuthClientRepository.findByOrganizationId", () => {
