@@ -1,8 +1,5 @@
-import type { TFunction } from "i18next";
-import short from "short-uuid";
-
 import getLabelValueMapFromResponses from "@calcom/lib/bookings/getLabelValueMapFromResponses";
-import { Prisma } from "@calcom/prisma/client";
+import type { Prisma } from "@calcom/prisma/client";
 import type {
   AdditionalInformation,
   AppsStatus,
@@ -12,7 +9,8 @@ import type {
   TeamMember,
   VideoCallData,
 } from "@calcom/types/Calendar";
-
+import type { TFunction } from "i18next";
+import short from "short-uuid";
 import { WEBAPP_URL } from "./constants";
 import isSmsCalEmail from "./isSmsCalEmail";
 import {
@@ -189,10 +187,19 @@ export const getLocation = (calEvent: {
   location?: string | null;
   uid?: string | null;
 }) => {
-  const meetingUrl = getVideoCallUrlFromCalEvent(calEvent);
-  if (meetingUrl) {
-    return meetingUrl;
-  }
+  // Deliberately does NOT resolve to the joinable meeting URL, which is what upstream does.
+  // This fork serves Lavela Health, where a session must be entered through Lavela's waiting
+  // room; that page redirects to /video/{uid} itself. Because this function feeds both the
+  // calendar event's `location` field and the "Where:" line of getRichDescription, returning
+  // the URL here puts a one-click join link in the provider's own calendar and lets them
+  // bypass the waiting room entirely.
+  //
+  // Scope of the suppression: the Cal Video room, the /video/{uid} route, the `meetingUrl`
+  // returned by the bookings API and `metadata.videoCallUrl` are all untouched. Only the
+  // link advertised on calendar events and CRM records is withheld, and Cal Video bookings
+  // now read as the provider name ("Cal Video") there instead.
+  //
+  // See agents/lavela-health-integration.md §9.
   const providerName = getProviderName(calEvent.location);
   return providerName || calEvent.location || "";
 };

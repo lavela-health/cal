@@ -10,6 +10,7 @@ Everything below was verified against `lavela-health/lavela-health` at `../lavel
 references are to that repo unless the path starts with `apps/` or `packages/`.
 
 **Last verified:** 2026-09-04, against `origin/main` @ `2118f8ed`.
+**§9 calendar-link suppression added:** 2026-09-11.
 
 > **This doc is part of the change, not a write-up of it.** Update it in the same PR as
 > any change to what it describes — §11 especially. It is the only record of these
@@ -252,6 +253,34 @@ visible. The tab strip is hidden from members, and the underlying
 `viewer.availability.listTeam` procedure re-checks the caller's role and the client's
 organization server-side.
 
+### Calendar events do not carry the join link
+
+`getLocation()` (`packages/lib/CalEventParser.ts`) is **forked**: upstream resolves it to
+the joinable Cal Video URL, this instance returns the provider name ("Cal Video") instead.
+That function feeds both the calendar event's `location` field and the `Where:` line of
+`getRichDescription`, so leaving it alone would put a one-click join link straight into the
+provider's own Google Calendar and let them bypass Lavela's waiting room — which is where a
+session has to start, because that is the page that opens the room.
+
+Deliberately **not** changed, so nothing downstream shifts:
+
+| Still returns the real URL | Where |
+|---|---|
+| `getVideoCallUrlFromCalEvent` / `getPublicVideoCallUrl` | `packages/lib/CalEventParser.ts` |
+| `meetingUrl` on `POST /v2/bookings/{uid}/confirm` | read by `Cal::Booking#confirm` and `DemoAppointment` |
+| `metadata.videoCallUrl` on bookings and webhook payloads | Cal's own "Join" button on `/bookings/upcoming` |
+| The `/video/{uid}` route itself | unchanged, still served by the web app |
+
+Two residual paths still reach a join link, both several clicks deep rather than one:
+the `getManageLink` line in the event description points at `{WEBAPP_URL}/booking/{uid}`,
+and Cal's own booking list has a Join button. Neither is reachable from the calendar
+event's location field, which was the one-click path.
+
+This only matters while Cal Video is the location. If an event type ever moves to a
+`link` location, no Cal Video room is created at all (`EventManager.ts` only calls
+`createVideoEvent` when the location string contains `integrations:`) and
+`/video/{uid}` stops resolving — see invariant 1.
+
 This view depends on managed-user creation calling `addToOAuthClient`
 (`apps/api/v2/src/modules/users/users.repository.ts`), which writes the
 `User.platformOAuthClients` link. Nothing else in this repo reads that link and no test
@@ -303,6 +332,10 @@ Breaking any of these breaks Lavela without breaking a test in this repo.
 9. `POST /v2/bookings/{uid}/confirm` must keep accepting a UID in the id position.
 10. `/slots` must keep returning an object keyed by date, not a flat array.
 11. Schedule `overrides` must keep accepting `00:00`–`00:00` as an all-day block.
+12. `getLocation()` must keep withholding the Cal Video URL from calendar events, and
+    `meetingUrl` on booking confirm must keep returning it. Reverting the first puts a
+    waiting-room bypass in every provider's calendar; changing the second breaks
+    `Cal::Booking#confirm` and demo appointments.
 
 ## 12. Deployment coupling
 

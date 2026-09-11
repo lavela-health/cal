@@ -1,6 +1,5 @@
 import { faker } from "@faker-js/faker";
 import { describe, expect, it, vi } from "vitest";
-
 import {
   getLocation,
   getPublicVideoCallUrl,
@@ -20,14 +19,30 @@ vi.mock("short-uuid", () => ({
 }));
 
 describe("getLocation", () => {
-  it("should return a meetingUrl for video call meetings", () => {
+  // Fork-specific: upstream returns the joinable URL here. Lavela Health requires sessions
+  // to be entered through its waiting room, so the link is withheld from calendar events
+  // and the "Where:" line. See agents/lavela-health-integration.md §9.
+  it("should NOT return a meetingUrl for video call meetings", () => {
     const calEvent = buildCalendarEvent({
+      location: "integrations:daily",
       videoCallData: buildVideoCallData({
         type: "daily_video",
       }),
     });
 
-    expect(getLocation(calEvent)).toEqual(getVideoCallUrlFromCalEvent(calEvent));
+    expect(getLocation(calEvent)).toEqual("Cal Video");
+    expect(getLocation(calEvent)).not.toEqual(getVideoCallUrlFromCalEvent(calEvent));
+  });
+
+  it("should still expose the meetingUrl through getVideoCallUrlFromCalEvent", () => {
+    const calEvent = buildCalendarEvent({
+      location: "integrations:daily",
+      videoCallData: buildVideoCallData({
+        type: "daily_video",
+      }),
+    });
+
+    expect(getVideoCallUrlFromCalEvent(calEvent)).toEqual(getPublicVideoCallUrl(calEvent.uid));
   });
   it("should return an integration provider name from event", () => {
     const provideName = "Cal.diy";
