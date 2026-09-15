@@ -43,4 +43,18 @@ runs:
     - name: Yarn playwright install
       if: ${{ (inputs.skip-install-if-cache-hit != 'true' && steps.playwright-cache.outputs.cache-hit != 'true') || (inputs.skip-install-if-cache-hit == 'true' && steps.playwright-cache-check.outputs.cache-hit != 'true') }}
       shell: bash
-      run: yarn playwright install --with-deps
+      # `yarn install` is skipped when all three yarn caches hit, which leaves node_modules
+      # unmaterialised. This cache key is keyed on the Playwright version alone, so it can
+      # miss while those hit — and then `yarn playwright` has nothing to resolve against.
+      run: |
+        if [ ! -d node_modules ]; then
+          echo "node_modules absent (yarn install was skipped on a cache hit); installing first"
+          yarn install --inline-builds
+        fi
+        yarn playwright install --with-deps
+      env:
+        YARN_ENABLE_IMMUTABLE_INSTALLS: "false"
+        YARN_ENABLE_GLOBAL_CACHE: "false"
+        YARN_INSTALL_STATE_PATH: .yarn/ci-cache/install-state.gz
+        YARN_NM_MODE: "hardlinks-local"
+        HUSKY: "0"
