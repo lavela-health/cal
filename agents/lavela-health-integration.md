@@ -293,6 +293,25 @@ This view depends on managed-user creation calling `addToOAuthClient`
 `User.platformOAuthClients` link. Nothing else in this repo reads that link and no test
 covers it — if creation stops writing it, every tab silently empties.
 
+### Organization-level email settings are removed
+
+`fetchOrganizationEmailSettings` (`packages/emails/email-manager.ts`) is stubbed to return
+`null`, and `shouldSkipAttendeeEmailWithSettings` ignores its organization arguments
+entirely — it checks only event-type metadata. The removal is marked in the source as a
+"team/org only feature".
+
+The OAuth client's `areEmailsEnabled` column still exists and is still honoured on the
+cancel and round-robin-reassign paths (`handleCancelBooking.ts`,
+`bookings.service.ts`), but **not** on create/confirm. So toggling `areEmailsEnabled` on a
+client does not reliably switch attendee emails off here the way it does upstream.
+
+Lavela does not depend on this: it confirms bookings itself and owns its own patient
+notifications. The upstream e2e specs that covered the flag
+(`.../2024-08-13/controllers/e2e/emails/confirm-emails.e2e-spec.ts` and
+`user-emails.e2e-spec.ts`) were deleted rather than left failing, since they assert a
+behaviour this fork deliberately does not have. If organization email settings are ever
+restored, restore those specs from upstream with them.
+
 ## 10. API surface consumed
 
 Server-side, from `Cal::Client`. Version headers are pinned per resource — the
