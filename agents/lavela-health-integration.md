@@ -339,11 +339,12 @@ Breaking any of these breaks Lavela without breaking a test in this repo.
 9. `POST /v2/bookings/{uid}/confirm` must keep accepting a UID in the id position.
 10. `/slots` must keep returning an object keyed by date, not a flat array.
 11. Schedule `overrides` must keep accepting `00:00`–`00:00` as an all-day block.
-12. `getLocation()` must keep withholding the Cal Video URL from calendar events — and
-    **only** the Cal Video URL; Google Meet and other providers must keep resolving. And
+12. `getLocation()` must keep withholding the Cal Video URL from calendar events, and
     `meetingUrl` on booking confirm must keep returning it. Reverting the first puts a
     waiting-room bypass in every provider's calendar; changing the second breaks
-    `Cal::Booking#confirm` and demo appointments.
+    `Cal::Booking#confirm` and demo appointments. The withholding covers **only** Cal
+    Video — Google Meet, Zoom and every other provider must keep resolving to their real
+    link, or their calendar events lose the join link for no benefit.
 
 ## 12. Deployment coupling
 
