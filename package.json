@@ -173,7 +173,7 @@
     "@adobe/css-tools": "4.3.2",
     "jsondiffpatch": "0.7.2",
     "min-document": "2.19.1",
-    "tar": "7.5.11",
+    "tar": "7.5.22",
     "lodash": "4.18.1",
     "lodash-es": "4.18.1",
     "@lingo.dev/_compiler/fast-xml-parser": "5.5.9",
@@ -209,7 +209,8 @@
     "brace-expansion@^5.0.2": "5.0.5",
     "brace-expansion@^2.0.1": "2.0.3",
     "brace-expansion@^2.0.2": "2.0.3",
-    "i18next-fs-backend": "^2.6.6"
+    "i18next-fs-backend": "^2.6.6",
+    "websocket-driver": "^0.7.5"
   },
   "packageExtensions": {
     "ink@3.2.0": {
