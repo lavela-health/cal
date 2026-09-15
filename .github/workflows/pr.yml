@@ -3,7 +3,16 @@ name: PR Update
 
 on:
   pull_request_target:
-    types: [opened, synchronize, reopened]
+    # `labeled` is here so that adding `ready-for-e2e` actually starts a run. Without it the
+    # label only takes effect on the next push, which reads as "CI is broken" to whoever
+    # applied it. The prepare job re-reads labels from the API at run time, so a re-run picks
+    # up the current set regardless of what the event payload carried.
+    #
+    # The cost is that applying any label — `bug`, `documentation` — starts a full run. That
+    # is deliberate: filtering by label name would mean skipping trust-check, and because the
+    # `required` gate runs with `if: always()`, a skipped run could report green over a
+    # previously red result. Wasted minutes beat silently turning a failing PR green.
+    types: [opened, synchronize, reopened, labeled]
     branches:
       - main
       - gh-actions-test-branch
