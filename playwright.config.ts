@@ -118,6 +118,15 @@ const config: PlaywrightTestConfig = {
       name: "@calcom/web",
       testDir: "./apps/web/playwright",
       testMatch: /.*\.e2e\.tsx?/,
+      // Lavela Health does not use the app store, analytics apps or Stripe payments, so
+      // these suites only cost CI time and credentials for features this fork never
+      // exercises. Skipped rather than deleted, so re-enabling is a one-line revert and
+      // the upstream test files stay mergeable.
+      testIgnore: [
+        "**/apps/analytics/**",
+        "**/payment.e2e.ts",
+        "**/payment-apps.e2e.ts",
+      ],
       expect: {
         timeout: DEFAULT_EXPECT_TIMEOUT,
       },

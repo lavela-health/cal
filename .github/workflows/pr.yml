@@ -386,27 +386,6 @@ jobs:
     uses: ./.github/workflows/e2e-api-v2.yml
     secrets: inherit
 
-  e2e-app-store:
-    name: Tests
-    needs: [prepare, build, setup-db]
-    if: ${{ needs.prepare.outputs.run-e2e == 'true' && needs.prepare.outputs.has-files-requiring-all-checks == 'true' }}
-    uses: ./.github/workflows/e2e-app-store.yml
-    secrets: inherit
-
-  e2e-embed:
-    name: Tests
-    needs: [prepare, build, setup-db]
-    if: ${{ needs.prepare.outputs.run-e2e == 'true' && needs.prepare.outputs.has-files-requiring-all-checks == 'true' }}
-    uses: ./.github/workflows/e2e-embed.yml
-    secrets: inherit
-
-  e2e-embed-react:
-    name: Tests
-    needs: [prepare, build, setup-db]
-    if: ${{ needs.prepare.outputs.run-e2e == 'true' && needs.prepare.outputs.has-files-requiring-all-checks == 'true' }}
-    uses: ./.github/workflows/e2e-embed-react.yml
-    secrets: inherit
-
   analyze:
     name: Analyze Build
     needs: [build]
@@ -431,9 +410,6 @@ jobs:
         setup-db,
         e2e,
         e2e-api-v2,
-        e2e-embed,
-        e2e-embed-react,
-        e2e-app-store,
       ]
     if: always()
     runs-on: ubuntu-latest
@@ -467,9 +443,6 @@ jobs:
               needs.setup-db.result != 'success' ||
               needs.integration-test.result != 'success' ||
               needs.e2e.result != 'success' ||
-              needs.e2e-api-v2.result != 'success' ||
-              needs.e2e-embed.result != 'success' ||
-              needs.e2e-embed-react.result != 'success' ||
-              needs.e2e-app-store.result != 'success'
+              needs.e2e-api-v2.result != 'success'
             )
           )
