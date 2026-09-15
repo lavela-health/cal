@@ -3,7 +3,6 @@ on:
   workflow_call:
 env:
   ALLOWED_HOSTNAMES: ${{ vars.CI_ALLOWED_HOSTNAMES }}
-  API_KEY_PREFIX: ${{ secrets.CI_API_KEY_PREFIX }}
   API_PORT: ${{ vars.CI_API_V2_PORT }}
   CALCOM_LICENSE_KEY: ${{ secrets.CI_CALCOM_LICENSE_KEY }}
   DAILY_API_KEY: ${{ secrets.CI_DAILY_API_KEY }}
