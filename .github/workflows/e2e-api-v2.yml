@@ -78,6 +78,10 @@ jobs:
           sparse-checkout: .github
       - uses: ./.github/actions/cache-checkout
       - uses: ./.github/actions/yarn-install
+      # cache-db runs `yarn db-seed` on a cache miss, and seed-basic imports
+      # ../generated/prisma/client — which only exists after generate. Every other
+      # workflow using cache-db already does this; this one was the lone omission.
+      - run: yarn prisma generate
       - uses: ./.github/actions/cache-db
       - name: Build platform packages with Turbo
         run: |
