@@ -317,11 +317,25 @@ removed. `fetchOrganizationEmailSettings` (`packages/emails/email-manager.ts`) r
 checking only event-type metadata. The OAuth client's `areEmailsEnabled` column still
 exists and is still honoured on cancel and round-robin reassign, but not on create/confirm.
 
-Because of the above, three sets of upstream API v2 e2e assertions were removed rather than
-left permanently red: `.../e2e/emails/confirm-emails.e2e-spec.ts` and
-`user-emails.e2e-spec.ts` (deleted), and the six email assertions inside
-`.../e2e/api-key-bookings.e2e-spec.ts` (the rest of that spec still covers API key auth).
+Because of the above, upstream API v2 e2e assertions that require a sent email were removed
+rather than left permanently red:
+
+- `.../e2e/emails/confirm-emails.e2e-spec.ts` and `user-emails.e2e-spec.ts` (deleted).
+- The six email assertions in `.../e2e/api-key-bookings.e2e-spec.ts` (the rest of that spec
+  still covers API key auth).
+- The positive email assertions in `.../e2e/add-guests.e2e-spec.ts` and
+  `.../e2e/remove-attendee.e2e-spec.ts`. The negative branch in `add-guests` is kept: it
+  still holds, and regains its meaning if the flag is ever turned off.
+
 Restore them from upstream if the kill switch is ever turned off.
+
+When one of these fails, read the **first** attempt, not the one CI reports.
+`apps/api/v2/test/jest.setup-e2e.ts` sets `jest.retryTimes(2)` under CI, so CI shows only
+the last attempt. A missing-email failure on attempt 1 still leaves the booking mutated, so
+the retry fails on the mutation instead and buries the real cause: add-guests reported
+`400 emails_must_be_unique_valid` (the guests the first attempt added are already
+attendees), and api-key-bookings reported `400 "already has booking"`. Both read as
+isolation bugs and are not. Reproduce locally without `CI=1` to see the actual assertion.
 
 ## 10. API surface consumed
 
