@@ -11,7 +11,8 @@ node_modules
 
 # testing
 coverage
-/test-results/
+# Not root-anchored: jest-junit writes to apps/api/v2/test-results, playwright to the root
+test-results/
 **/playwright/videos
 **/playwright/screenshots
 **/playwright/artifacts
