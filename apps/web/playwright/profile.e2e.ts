@@ -1,4 +1,4 @@
-import { WEBAPP_URL } from "@calcom/lib/constants";
+import { IS_MAILHOG_ENABLED, WEBAPP_URL } from "@calcom/lib/constants";
 import type { PrismaClient } from "@calcom/prisma";
 import type { Page } from "@playwright/test";
 import { expect } from "@playwright/test";
@@ -7,7 +7,7 @@ import type { Messages } from "mailhog";
 import type { createEmailsFixture } from "./fixtures/emails";
 import type { createUsersFixture } from "./fixtures/users";
 import { test } from "./lib/fixtures";
-import { getEmailsReceivedByUser, submitAndWaitForResponse, getDefaultPassword } from "./lib/testUtils";
+import { getDefaultPassword, getEmailsReceivedByUser, submitAndWaitForResponse } from "./lib/testUtils";
 
 const expectInvitationEmailToBeReceived = async ({
   emails,
@@ -221,6 +221,11 @@ test.describe("Update Profile", () => {
   };
 
   test("Can add a new email as a secondary email", async ({ page, users, prisma, emails }) => {
+    // The emails fixture is only created when MailHog is running (fixtures/emails.ts), so
+    // without it getEmailsReceivedByUser returns null and the assertion below compares
+    // against undefined. signup.e2e.ts guards the same way.
+    test.skip(!IS_MAILHOG_ENABLED, "Skipping - MailHog is not available");
+
     const user = await users.create({
       name: "update-profile-user",
     });
