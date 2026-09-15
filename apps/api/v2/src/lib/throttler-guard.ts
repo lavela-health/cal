@@ -1,20 +1,19 @@
-import { getEnv } from "@/env";
-import { sha256Hash, isApiKey, stripApiKey } from "@/lib/api-key";
-import { Throttle } from "@/lib/endpoint-throttler-decorator";
-import { PrismaReadService } from "@/modules/prisma/prisma-read.service";
+import { X_CAL_CLIENT_ID } from "@calcom/platform-constants";
 import { ThrottlerStorageRedisService } from "@nest-lab/throttler-storage-redis";
 import { Inject, Injectable, Logger, UnauthorizedException } from "@nestjs/common";
 import { Reflector } from "@nestjs/core";
 import {
-  ThrottlerGuard,
   ThrottlerException,
-  ThrottlerRequest,
+  ThrottlerGuard,
   ThrottlerModuleOptions,
+  ThrottlerRequest,
 } from "@nestjs/throttler";
 import { Request, Response } from "express";
 import { z } from "zod";
-
-import { X_CAL_CLIENT_ID } from "@calcom/platform-constants";
+import { getEnv } from "@/env";
+import { isApiKey, sha256Hash, stripApiKey } from "@/lib/api-key";
+import { Throttle } from "@/lib/endpoint-throttler-decorator";
+import { PrismaReadService } from "@/modules/prisma/prisma-read.service";
 
 const rateLimitSchema = z.object({
   name: z.string(),
@@ -50,6 +49,8 @@ export class CustomThrottlerGuard extends ThrottlerGuard {
     this.storageService = storageService;
   }
 
+  private readonly isE2E = getEnv("IS_E2E", "false") === "true";
+
   protected async handleRequest(requestProps: ThrottlerRequest): Promise<boolean> {
     const { context } = requestProps;
     const throttleOptions = this.reflector.get(Throttle, context.getHandler());
@@ -57,7 +58,16 @@ export class CustomThrottlerGuard extends ThrottlerGuard {
     const IP = request?.headers?.["cf-connecting-ip"] ?? request?.headers?.["CF-Connecting-IP"] ?? request.ip;
     const response = context.switchToHttp().getResponse<Response>();
     const tracker = await this.getTracker(request);
-    if (throttleOptions) {
+    // Per-endpoint throttles declare deliberately small limits for abuse prevention —
+    // booking-guests is 5/min with a 60s block. The e2e suite calls those endpoints far more
+    // than that, from parallel jest workers sharing one API process, so the limit fires during
+    // test setup and fails assertions that have nothing to do with rate limiting.
+    //
+    // test/setEnvVars.ts already raises RATE_LIMIT_DEFAULT_LIMIT to 10000 for exactly this
+    // reason, but that only covers the two branches below — this one short-circuits ahead of
+    // them and ignores it. IS_E2E is set only by that file and by e2e-api-v2.yml; it defaults
+    // to "false" in .env and .env.example, so no deployment takes this path.
+    if (throttleOptions && !this.isE2E) {
       return this.handleApiEndpointThrottle(tracker, throttleOptions, response);
     }
 
