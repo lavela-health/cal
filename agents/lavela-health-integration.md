@@ -293,24 +293,35 @@ This view depends on managed-user creation calling `addToOAuthClient`
 `User.platformOAuthClients` link. Nothing else in this repo reads that link and no test
 covers it — if creation stops writing it, every tab silently empties.
 
-### Organization-level email settings are removed
+### This instance sends no email at all
 
-`fetchOrganizationEmailSettings` (`packages/emails/email-manager.ts`) is stubbed to return
-`null`, and `shouldSkipAttendeeEmailWithSettings` ignores its organization arguments
-entirely — it checks only event-type metadata. The removal is marked in the source as a
-"team/org only feature".
+The `emails` KILL_SWITCH feature flag is set to `enabled = true` by
+`20260907000000_enable_emails_kill_switch`. Its polarity is inverted relative to other
+flags: **enabled means "prevent any emails being sent"**. `BaseEmail.sendEmail()` checks it
+before constructing a transport, so no SMTP configuration exists or is needed. The
+migration's own rationale: Lavela owns all patient and therapist communication, so booking
+mail from this instance would be duplicate and off-brand.
 
-The OAuth client's `areEmailsEnabled` column still exists and is still honoured on the
-cancel and round-robin-reassign paths (`handleCancelBooking.ts`,
-`bookings.service.ts`), but **not** on create/confirm. So toggling `areEmailsEnabled` on a
-client does not reliably switch attendee emails off here the way it does upstream.
+Consequences worth knowing before debugging a "missing email":
 
-Lavela does not depend on this: it confirms bookings itself and owns its own patient
-notifications. The upstream e2e specs that covered the flag
-(`.../2024-08-13/controllers/e2e/emails/confirm-emails.e2e-spec.ts` and
-`user-emails.e2e-spec.ts`) were deleted rather than left failing, since they assert a
-behaviour this fork deliberately does not have. If organization email settings are ever
-restored, restore those specs from upstream with them.
+- No booking, confirmation, cancellation or reschedule mail leaves this instance. If a
+  provider or patient expects mail, it comes from Lavela, not here.
+- Any upstream test asserting an email was sent fails here by construction. Supplying
+  `EMAIL_SERVER_*` or `SENDGRID_*` does not help — the flag is checked before transport.
+- Toggle it from the admin feature-flags UI if email is ever wanted; the migration only
+  sets the starting state.
+
+Secondary, and independent of the kill switch: organization-level email settings are also
+removed. `fetchOrganizationEmailSettings` (`packages/emails/email-manager.ts`) returns
+`null` and `shouldSkipAttendeeEmailWithSettings` ignores its organization arguments,
+checking only event-type metadata. The OAuth client's `areEmailsEnabled` column still
+exists and is still honoured on cancel and round-robin reassign, but not on create/confirm.
+
+Because of the above, three sets of upstream API v2 e2e assertions were removed rather than
+left permanently red: `.../e2e/emails/confirm-emails.e2e-spec.ts` and
+`user-emails.e2e-spec.ts` (deleted), and the six email assertions inside
+`.../e2e/api-key-bookings.e2e-spec.ts` (the rest of that spec still covers API key auth).
+Restore them from upstream if the kill switch is ever turned off.
 
 ## 10. API surface consumed
 
