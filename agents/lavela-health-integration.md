@@ -328,16 +328,18 @@ Restore them from upstream if the kill switch is ever turned off.
 Server-side, from `Cal::Client`. Version headers are pinned per resource — the
 `2024-04-15` variants are not used.
 
-| Endpoint | Methods | `cal-api-version` |
-|---|---|---|
-| `/oauth-clients/{clientId}/users` | POST, GET | — |
-| `/oauth-clients/{clientId}/users/{userId}` | GET, DELETE | — |
-| `/oauth-clients/{clientId}/users/{userId}/force-refresh` | POST | — |
-| `/oauth/{clientId}/refresh` | POST | — |
-| `/event-types`, `/event-types/{id}` | POST, GET, PATCH | `2024-06-14` |
-| `/bookings`, `/bookings/{uid}`, `/bookings/{uid}/confirm`, `/bookings/{uid}/cancel` | POST, GET | `2024-08-13` |
-| `/slots` | GET | `2024-09-04` |
-| `/schedules`, `/schedules/{id}` | GET, POST, PATCH | `2024-06-11` |
+| Endpoint | Methods | `cal-api-version` | Notes |
+|---|---|---|---|
+| `/oauth-clients/{clientId}/users` | POST, GET | — | |
+| `/oauth-clients/{clientId}/users/{userId}` | GET, DELETE | — | |
+| `/oauth-clients/{clientId}/users/{userId}/force-refresh` | POST | — | |
+| `/oauth/{clientId}/refresh` | POST | — | |
+| `/event-types`, `/event-types/{id}` | POST, GET, PATCH | `2024-06-14` | |
+| `/bookings`, `/bookings/{uid}`, `/bookings/{uid}/confirm`, `/bookings/{uid}/cancel` | POST, GET | `2024-08-13` | |
+| `/slots` | GET | `2024-09-04` | |
+| `/slots/next` | GET | `2024-09-04` | Built for Lavela, not yet called |
+| `/oauth-clients/{clientId}/slots/next` | GET | — | Built for Lavela, not yet called |
+| `/schedules`, `/schedules/{id}` | GET, POST, PATCH | `2024-06-11` | |
 
 Response shapes Lavela parses positionally:
 
@@ -348,6 +350,9 @@ Response shapes Lavela parses positionally:
 - Event type create → `data.id`
 - Schedules list → array with `isDefault`, `id`, `timeZone`, `overrides`
 - Slots → `data` is an **object keyed by date**, each value an array of slots with `start`
+- Next slots → `data` is a **flat array** ordered by `start`, each entry carrying `start`,
+  `end`, `duration`, `eventTypeId`, `eventTypeSlug`, and — on the OAuth client route —
+  `user` with `id`, `username`, `name`
 - Errors → `error.message`
 
 ## 11. Invariants
@@ -375,6 +380,10 @@ Breaking any of these breaks Lavela without breaking a test in this repo.
     `Cal::Booking#confirm` and demo appointments. The withholding covers **only** Cal
     Video — Google Meet, Zoom and every other provider must keep resolving to their real
     link, or their calendar events lose the join link for no benefit.
+13. The next-slots routes (`/slots/next`, `/oauth-clients/{clientId}/slots/next`) must keep
+    returning a flat array ordered by `start`, not an object keyed by date. This is the
+    deliberate mirror of #10: the two slot surfaces have different shapes on purpose, and
+    unifying them breaks one consumer or the other.
 
 ## 12. Deployment coupling
 
