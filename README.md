@@ -247,8 +247,23 @@ packages/features/   Feature-sliced business logic
 packages/platform/   libraries/ re-exports @calcom/features and @calcom/trpc for API v2
 ```
 
-PRs go up as **drafts**, titled with conventional commits, under 500 lines and 10 code
-files.
+### Pull requests
+
+Draft by default, conventional-commit title, under 500 lines and 10 code files.
+
+Every PR runs lint, type check, unit tests, API v2 unit tests and a security audit.
+Migration checks run only when `packages/prisma/` changes.
+
+Everything heavier is opt-in through the **`ready-for-e2e`** label:
+
+| | |
+|---|---|
+| Without it | The E2E suites, integration tests, production builds and bundle analysis all skip. The aggregate `required` check then fails **by design**, to stop a merge that never ran E2E. A red `required` with everything else green means the label, not a broken PR. |
+| With it | Adds a seeded database, integration tests, web (8 shards) and API v2 (4 shards) E2E, the three production builds and bundle analysis. Roughly 20 minutes. |
+
+Add the label when a change touches booking, availability, event types, schedules or API
+v2 behaviour. Skip it for docs, config and test-only changes. Applying it starts a run on
+its own — no push needed — and it cancels any run already in flight.
 
 ---
 
