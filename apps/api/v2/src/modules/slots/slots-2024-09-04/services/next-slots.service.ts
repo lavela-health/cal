@@ -1,10 +1,9 @@
-import { EventTypesRepository_2024_06_14 } from "@/platform/event-types/event-types_2024_06_14/event-types.repository";
+import { type NextSlot, type NextSlotCandidate, NextSlotsService } from "@calcom/platform-libraries/slots";
+import type { GetNextSlotsInput_2024_09_04 } from "@calcom/platform-types";
+import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
 import { AvailableSlotsService } from "@/lib/services/available-slots.service";
 import { UsersRepository } from "@/modules/users/users.repository";
-import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
-
-import { NextSlotsService, type NextSlot, type NextSlotCandidate } from "@calcom/platform-libraries/slots";
-import type { GetNextSlotsInput_2024_09_04 } from "@calcom/platform-types";
+import { EventTypesRepository_2024_06_14 } from "@/platform/event-types/event-types_2024_06_14/event-types.repository";
 
 @Injectable()
 export class NextSlotsService_2024_09_04 {

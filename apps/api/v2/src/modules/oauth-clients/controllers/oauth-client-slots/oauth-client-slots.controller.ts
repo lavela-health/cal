@@ -1,15 +1,14 @@
+import { SUCCESS_STATUS, X_CAL_SECRET_KEY } from "@calcom/platform-constants";
+import type { NextSlotCandidate } from "@calcom/platform-libraries/slots";
+import { GetClientNextSlotsInput_2024_09_04 } from "@calcom/platform-types";
+import { Controller, Get, Param, Query, UseGuards } from "@nestjs/common";
+import { ApiHeader, ApiOperation, ApiResponse as DocsResponse, ApiTags as DocsTags } from "@nestjs/swagger";
 import { API_VERSIONS_VALUES } from "@/lib/api-versions";
 import { ApiAuthGuard } from "@/modules/auth/guards/api-auth/api-auth.guard";
 import { OAuthClientGuard } from "@/modules/oauth-clients/guards/oauth-client-guard";
 import { GetNextSlotsOutput_2024_09_04 } from "@/modules/slots/slots-2024-09-04/outputs/get-next-slots.output";
 import { NextSlotsService_2024_09_04 } from "@/modules/slots/slots-2024-09-04/services/next-slots.service";
 import { UsersRepository } from "@/modules/users/users.repository";
-import { Controller, Get, Param, Query, UseGuards } from "@nestjs/common";
-import { ApiHeader, ApiOperation, ApiResponse as DocsResponse, ApiTags as DocsTags } from "@nestjs/swagger";
-
-import { SUCCESS_STATUS, X_CAL_SECRET_KEY } from "@calcom/platform-constants";
-import type { NextSlotCandidate } from "@calcom/platform-libraries/slots";
-import { GetClientNextSlotsInput_2024_09_04 } from "@calcom/platform-types";
 
 @Controller({
   path: "/v2/oauth-clients/:clientId/slots",

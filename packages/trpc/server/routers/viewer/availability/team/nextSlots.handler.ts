@@ -1,7 +1,7 @@
 import { getAvailableSlotsService } from "@calcom/features/di/containers/AvailableSlots";
 import { prisma } from "@calcom/prisma";
 import type { TrpcSessionUser } from "../../../../types";
-import { NextSlotsService, type NextSlotCandidate } from "../../slots/nextSlots";
+import { type NextSlotCandidate, NextSlotsService } from "../../slots/nextSlots";
 import type { TNextSlotsInputSchema } from "./nextSlots.schema";
 import { resolveOAuthClientOrganization } from "./resolveOAuthClientOrganization";
 

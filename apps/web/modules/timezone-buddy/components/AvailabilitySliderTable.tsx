@@ -74,6 +74,18 @@ function AvailabilitySliderTableContent({ oAuthClientId }: AvailabilitySliderTab
     }
   );
 
+  //we must flatten the array of arrays from the useInfiniteQuery hook
+  const flatData = useMemo(() => data?.pages?.flatMap((page) => page.rows) ?? [], [data]) as SliderUser[];
+
+  const userIds = useMemo(() => flatData.map((user) => user.id), [flatData]);
+
+  // A query of its own rather than a wider listTeam, so computing slots for the page does
+  // not hold up the grid's first paint.
+  const { data: nextSlots, isPending: isNextSlotsPending } = trpc.viewer.availability.nextSlots.useQuery(
+    { oAuthClientId, userIds },
+    { enabled: userIds.length > 0, placeholderData: keepPreviousData }
+  );
+
   const memorisedColumns = useMemo(() => {
     const cols: ColumnDef<SliderUser>[] = [
       {
@@ -107,6 +119,32 @@ function AvailabilitySliderTableContent({ oAuthClientId }: AvailabilitySliderTab
         },
         filterFn: (row, id, value) => {
           return row.original.name?.toLowerCase().includes(value.toLowerCase()) || false;
+        },
+      },
+      {
+        id: "nextAvailable",
+        header: t("next_available"),
+        enableHiding: false,
+        enableSorting: false,
+        size: 180,
+        cell: ({ row }) => {
+          const slot = nextSlots?.[String(row.original.id)];
+          if (isNextSlotsPending) {
+            return <div className="bg-subtle h-4 w-24 animate-pulse rounded-md" />;
+          }
+          if (!slot) {
+            return (
+              <span className="text-subtle text-sm" title={t("no_upcoming_availability")}>
+                &mdash;
+              </span>
+            );
+          }
+          // Rendered in the provider's own timezone, matching the column beside it.
+          return (
+            <span className="text-emphasis text-sm">
+              {dayjs(slot.start).tz(row.original.timeZone).format("MMM D, HH:mm")}
+            </span>
+          );
         },
       },
       {
@@ -172,10 +210,8 @@ function AvailabilitySliderTableContent({ oAuthClientId }: AvailabilitySliderTab
     ];
 
     return cols;
-  }, [browsingDate, t]);
+  }, [browsingDate, t, nextSlots, isNextSlotsPending]);
 
-  //we must flatten the array of arrays from the useInfiniteQuery hook
-  const flatData = useMemo(() => data?.pages?.flatMap((page) => page.rows) ?? [], [data]) as SliderUser[];
   const totalRowCount = data?.pages?.[0]?.meta?.totalRowCount ?? 0;
   const totalFetched = flatData.length;
 
