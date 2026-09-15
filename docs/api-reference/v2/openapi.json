@@ -1,6 +1,100 @@
 {
   "openapi": "3.0.0",
   "paths": {
+    "/v2/oauth-clients/{clientId}/slots/next": {
+      "get": {
+        "operationId": "OAuthClientSlotsController_getNextSlots",
+        "summary": "Get the next available time slots across all managed users",
+        "description": "\n      Returns the soonest available slots across every managed user of the OAuth client, as a flat, time-ordered array, each slot tagged with the user it is bookable with.\n\n      By default every bookable event type each managed user owns is searched, so the returned slots can differ in duration — use 'eventTypeId' and 'duration' on each slot to tell them apart, or pass 'eventTypeSlug' to narrow the search.\n\n      Managed users with no bookable event type are skipped. A response shorter than 'limit' means no further slots exist within 'maxHorizonDays'.\n      ",
+        "parameters": [
+          {
+            "name": "x-cal-secret-key",
+            "in": "header",
+            "description": "OAuth client secret key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "clientId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": true,
+            "in": "query",
+            "description": "How many slots to return.",
+            "schema": {
+              "minimum": 1,
+              "maximum": 50,
+              "example": 5,
+              "type": "number"
+            }
+          },
+          {
+            "name": "after",
+            "required": false,
+            "in": "query",
+            "description": "Only return slots starting after this time. Must be in UTC timezone as an ISO 8601 datestring. Defaults to now.",
+            "schema": {
+              "example": "2050-09-05T09:00:00Z",
+              "type": "string"
+            }
+          },
+          {
+            "name": "timeZone",
+            "required": false,
+            "in": "query",
+            "description": "Time zone in which the slots should be returned. Defaults to UTC.",
+            "schema": {
+              "example": "Europe/Rome",
+              "type": "string"
+            }
+          },
+          {
+            "name": "maxHorizonDays",
+            "required": false,
+            "in": "query",
+            "description": "How far into the future to search before giving up. A response shorter than 'limit' means this horizon held no more slots.",
+            "schema": {
+              "minimum": 1,
+              "maximum": 365,
+              "default": 90,
+              "example": 90,
+              "type": "number"
+            }
+          },
+          {
+            "name": "eventTypeSlug",
+            "required": false,
+            "in": "query",
+            "description": "Restrict the search to each managed user's event type with this slug. Defaults to every bookable event type they own.",
+            "schema": {
+              "example": "intro",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetNextSlotsOutput_2024_09_04"
+                }
+              }
+            }
+          }
+        },
+        "tags": ["Platform / Managed Users"]
+      }
+    },
     "/v2/api-keys/refresh": {
       "post": {
         "operationId": "ApiKeysController_refresh",
@@ -5516,6 +5610,123 @@
         "tags": ["Slots"]
       }
     },
+    "/v2/slots/next": {
+      "get": {
+        "operationId": "SlotsController_2024_09_04_getNextSlots",
+        "summary": "Get the next available time slots for an event type",
+        "description": "\n      Returns the soonest available slots as a flat, time-ordered array, without the caller having to pick a date range.\n\n      The event type is identified either by 'eventTypeId', or by 'username' plus 'eventTypeSlug'.\n\n      Unlike '/v2/slots', the response is an array rather than an object keyed by date, and it is capped by 'limit' rather than by an end date. A response shorter than 'limit' means no further slots exist within 'maxHorizonDays'.\n\n      The event type's minimum booking notice is respected, so a slot inside the notice window is never returned.\n      ",
+        "parameters": [
+          {
+            "name": "cal-api-version",
+            "in": "header",
+            "description": "Must be set to 2024-09-04. If not set to this value, the endpoint will default to an older version.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "default": "2024-09-04"
+            }
+          },
+          {
+            "name": "limit",
+            "required": true,
+            "in": "query",
+            "description": "How many slots to return.",
+            "schema": {
+              "minimum": 1,
+              "maximum": 50,
+              "example": 5,
+              "type": "number"
+            }
+          },
+          {
+            "name": "after",
+            "required": false,
+            "in": "query",
+            "description": "Only return slots starting after this time. Must be in UTC timezone as an ISO 8601 datestring. Defaults to now.",
+            "schema": {
+              "example": "2050-09-05T09:00:00Z",
+              "type": "string"
+            }
+          },
+          {
+            "name": "timeZone",
+            "required": false,
+            "in": "query",
+            "description": "Time zone in which the slots should be returned. Defaults to UTC.",
+            "schema": {
+              "example": "Europe/Rome",
+              "type": "string"
+            }
+          },
+          {
+            "name": "maxHorizonDays",
+            "required": false,
+            "in": "query",
+            "description": "How far into the future to search before giving up. A response shorter than 'limit' means this horizon held no more slots.",
+            "schema": {
+              "minimum": 1,
+              "maximum": 365,
+              "default": 90,
+              "example": 90,
+              "type": "number"
+            }
+          },
+          {
+            "name": "eventTypeId",
+            "required": false,
+            "in": "query",
+            "description": "The ID of the event type. Either this, or username plus eventTypeSlug, is required.",
+            "schema": {
+              "example": 100,
+              "type": "number"
+            }
+          },
+          {
+            "name": "username",
+            "required": false,
+            "in": "query",
+            "description": "The username of the event type's owner.",
+            "schema": {
+              "example": "bob",
+              "type": "string"
+            }
+          },
+          {
+            "name": "eventTypeSlug",
+            "required": false,
+            "in": "query",
+            "description": "The slug of the event type.",
+            "schema": {
+              "example": "intro",
+              "type": "string"
+            }
+          },
+          {
+            "name": "duration",
+            "required": false,
+            "in": "query",
+            "description": "For event types that allow multiple durations, the desired duration in minutes.",
+            "schema": {
+              "example": 60,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetNextSlotsOutput_2024_09_04"
+                }
+              }
+            }
+          }
+        },
+        "tags": ["Slots"]
+      }
+    },
     "/v2/slots/reservations": {
       "post": {
         "operationId": "SlotsController_2024_09_04_reserveSlot",
@@ -7254,6 +7465,77 @@
           }
         },
         "required": ["refreshToken"]
+      },
+      "NextSlotUser_2024_09_04": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number",
+            "description": "ID of the user who owns the event type."
+          },
+          "username": {
+            "type": "object",
+            "description": "Username of the user who owns the event type.",
+            "nullable": true
+          },
+          "name": {
+            "type": "object",
+            "description": "Name of the user who owns the event type.",
+            "nullable": true
+          }
+        },
+        "required": ["id", "username", "name"]
+      },
+      "NextSlot_2024_09_04": {
+        "type": "object",
+        "properties": {
+          "start": {
+            "type": "string",
+            "description": "Start time of the slot."
+          },
+          "end": {
+            "type": "string",
+            "description": "End time of the slot."
+          },
+          "duration": {
+            "type": "number",
+            "description": "Duration of the slot in minutes."
+          },
+          "eventTypeId": {
+            "type": "number",
+            "description": "ID of the event type this slot belongs to."
+          },
+          "eventTypeSlug": {
+            "type": "string",
+            "description": "Slug of the event type this slot belongs to."
+          },
+          "user": {
+            "description": "The user this slot is bookable with. Only returned by the OAuth client endpoint.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/NextSlotUser_2024_09_04"
+              }
+            ]
+          }
+        },
+        "required": ["start", "end", "duration", "eventTypeId", "eventTypeSlug"]
+      },
+      "GetNextSlotsOutput_2024_09_04": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "example": "success",
+            "enum": ["success", "error"]
+          },
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/NextSlot_2024_09_04"
+            }
+          }
+        },
+        "required": ["status", "data"]
       },
       "RefreshApiKeyInput": {
         "type": "object",
@@ -11521,6 +11803,114 @@
         },
         "required": ["status", "data"]
       },
+      "ReserveSlotInput_2024_09_04": {
+        "type": "object",
+        "properties": {
+          "eventTypeId": {
+            "type": "number",
+            "example": 1,
+            "description": "The ID of the event type for which slot should be reserved."
+          },
+          "slotStart": {
+            "type": "string",
+            "example": "2024-09-04T09:00:00Z",
+            "description": "ISO 8601 datestring in UTC timezone representing available slot."
+          },
+          "slotDuration": {
+            "type": "number",
+            "example": "30",
+            "description": "By default slot duration is equal to event type length, but if you want to reserve a slot for an event type that has a variable length you can specify it here as a number in minutes. If you don't have this set explicitly that event type can have one of many lengths you can omit this."
+          },
+          "reservationDuration": {
+            "type": "number",
+            "example": 5,
+            "description": "ONLY for authenticated requests with api key, access token or OAuth credentials (ID + secret).\n      \n      For how many minutes the slot should be reserved - for this long time noone else can book this event type at `start` time. If not provided, defaults to 5 minutes."
+          }
+        },
+        "required": ["eventTypeId", "slotStart"]
+      },
+      "ReserveSlotOutput_2024_09_04": {
+        "type": "object",
+        "properties": {
+          "eventTypeId": {
+            "type": "number",
+            "example": 1,
+            "description": "The ID of the event type for which slot was reserved."
+          },
+          "slotStart": {
+            "type": "string",
+            "example": "2024-09-04T09:00:00Z",
+            "description": "ISO 8601 datestring in UTC timezone representing available slot."
+          },
+          "slotEnd": {
+            "type": "string",
+            "example": "2024-09-04T10:00:00Z",
+            "description": "ISO 8601 datestring in UTC timezone representing slot end."
+          },
+          "slotDuration": {
+            "type": "number",
+            "example": "30",
+            "description": "By default slot duration is equal to event type length, but if you want to reserve a slot for an event type that has a variable length you can specify it here. If you don't have this set explicitly that event type can have one of many lengths you can omit this."
+          },
+          "reservationUid": {
+            "type": "string",
+            "example": "e84be5a3-4696-49e3-acc7-b2f3999c3b94",
+            "description": "The unique identifier of the reservation. Use it to update, get or delete the reservation."
+          },
+          "reservationDuration": {
+            "type": "number",
+            "example": 5,
+            "description": "For how many minutes the slot is reserved - for this long time noone else can book this event type at `start` time."
+          },
+          "reservationUntil": {
+            "type": "string",
+            "example": "2023-09-04T10:00:00Z",
+            "description": "ISO 8601 datestring in UTC timezone representing time until which the slot is reserved."
+          }
+        },
+        "required": [
+          "eventTypeId",
+          "slotStart",
+          "slotEnd",
+          "slotDuration",
+          "reservationUid",
+          "reservationDuration",
+          "reservationUntil"
+        ]
+      },
+      "ReserveSlotOutputResponse_2024_09_04": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "example": "success",
+            "enum": ["success", "error"]
+          },
+          "data": {
+            "$ref": "#/components/schemas/ReserveSlotOutput_2024_09_04"
+          }
+        },
+        "required": ["status", "data"]
+      },
+      "GetReservedSlotOutput_2024_09_04": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "example": "success",
+            "enum": ["success", "error"]
+          },
+          "data": {
+            "nullable": true,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/GetReservedSlotOutput_2024_09_04"
+              }
+            ]
+          }
+        },
+        "required": ["status", "data"]
+      },
       "MeOrgOutput": {
         "type": "object",
         "properties": {
@@ -15041,114 +15431,6 @@
               }
             ],
             "description": "Booking data, which can be either a BookingOutput object, a RecurringBookingOutput object, or an array of RecurringBookingOutput objects"
-          }
-        },
-        "required": ["status", "data"]
-      },
-      "ReserveSlotInput_2024_09_04": {
-        "type": "object",
-        "properties": {
-          "eventTypeId": {
-            "type": "number",
-            "example": 1,
-            "description": "The ID of the event type for which slot should be reserved."
-          },
-          "slotStart": {
-            "type": "string",
-            "example": "2024-09-04T09:00:00Z",
-            "description": "ISO 8601 datestring in UTC timezone representing available slot."
-          },
-          "slotDuration": {
-            "type": "number",
-            "example": "30",
-            "description": "By default slot duration is equal to event type length, but if you want to reserve a slot for an event type that has a variable length you can specify it here as a number in minutes. If you don't have this set explicitly that event type can have one of many lengths you can omit this."
-          },
-          "reservationDuration": {
-            "type": "number",
-            "example": 5,
-            "description": "ONLY for authenticated requests with api key, access token or OAuth credentials (ID + secret).\n      \n      For how many minutes the slot should be reserved - for this long time noone else can book this event type at `start` time. If not provided, defaults to 5 minutes."
-          }
-        },
-        "required": ["eventTypeId", "slotStart"]
-      },
-      "ReserveSlotOutput_2024_09_04": {
-        "type": "object",
-        "properties": {
-          "eventTypeId": {
-            "type": "number",
-            "example": 1,
-            "description": "The ID of the event type for which slot was reserved."
-          },
-          "slotStart": {
-            "type": "string",
-            "example": "2024-09-04T09:00:00Z",
-            "description": "ISO 8601 datestring in UTC timezone representing available slot."
-          },
-          "slotEnd": {
-            "type": "string",
-            "example": "2024-09-04T10:00:00Z",
-            "description": "ISO 8601 datestring in UTC timezone representing slot end."
-          },
-          "slotDuration": {
-            "type": "number",
-            "example": "30",
-            "description": "By default slot duration is equal to event type length, but if you want to reserve a slot for an event type that has a variable length you can specify it here. If you don't have this set explicitly that event type can have one of many lengths you can omit this."
-          },
-          "reservationUid": {
-            "type": "string",
-            "example": "e84be5a3-4696-49e3-acc7-b2f3999c3b94",
-            "description": "The unique identifier of the reservation. Use it to update, get or delete the reservation."
-          },
-          "reservationDuration": {
-            "type": "number",
-            "example": 5,
-            "description": "For how many minutes the slot is reserved - for this long time noone else can book this event type at `start` time."
-          },
-          "reservationUntil": {
-            "type": "string",
-            "example": "2023-09-04T10:00:00Z",
-            "description": "ISO 8601 datestring in UTC timezone representing time until which the slot is reserved."
-          }
-        },
-        "required": [
-          "eventTypeId",
-          "slotStart",
-          "slotEnd",
-          "slotDuration",
-          "reservationUid",
-          "reservationDuration",
-          "reservationUntil"
-        ]
-      },
-      "ReserveSlotOutputResponse_2024_09_04": {
-        "type": "object",
-        "properties": {
-          "status": {
-            "type": "string",
-            "example": "success",
-            "enum": ["success", "error"]
-          },
-          "data": {
-            "$ref": "#/components/schemas/ReserveSlotOutput_2024_09_04"
-          }
-        },
-        "required": ["status", "data"]
-      },
-      "GetReservedSlotOutput_2024_09_04": {
-        "type": "object",
-        "properties": {
-          "status": {
-            "type": "string",
-            "example": "success",
-            "enum": ["success", "error"]
-          },
-          "data": {
-            "nullable": true,
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/GetReservedSlotOutput_2024_09_04"
-              }
-            ]
           }
         },
         "required": ["status", "data"]
