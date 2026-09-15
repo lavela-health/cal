@@ -187,19 +187,31 @@ export const getLocation = (calEvent: {
   location?: string | null;
   uid?: string | null;
 }) => {
-  // Deliberately does NOT resolve to the joinable meeting URL, which is what upstream does.
-  // This fork serves Lavela Health, where a session must be entered through Lavela's waiting
-  // room; that page redirects to /video/{uid} itself. Because this function feeds both the
-  // calendar event's `location` field and the "Where:" line of getRichDescription, returning
-  // the URL here puts a one-click join link in the provider's own calendar and lets them
-  // bypass the waiting room entirely.
+  // Deliberately does NOT resolve to the joinable meeting URL for Cal Video, which is what
+  // upstream does. This fork serves Lavela Health, where a session must be entered through
+  // Lavela's waiting room; that page redirects to /video/{uid} itself. Because this function
+  // feeds both the calendar event's `location` field and the "Where:" line of
+  // getRichDescription, returning the URL here puts a one-click join link in the provider's
+  // own calendar and lets them bypass the waiting room entirely.
+  //
+  // The suppression stops at Cal Video. Google Meet, Zoom and every other provider have no
+  // waiting room to bypass, so withholding their links would break the calendar event for no
+  // reason — which is exactly what happened when this check was first written without the
+  // guard below.
   //
   // Scope of the suppression: the Cal Video room, the /video/{uid} route, the `meetingUrl`
   // returned by the bookings API and `metadata.videoCallUrl` are all untouched. Only the
-  // link advertised on calendar events and CRM records is withheld, and Cal Video bookings
-  // now read as the provider name ("Cal Video") there instead.
+  // Cal Video link advertised on calendar events and CRM records is withheld, and those
+  // bookings read as the provider name ("Cal Video") there instead.
   //
   // See agents/lavela-health-integration.md §9.
+  if (!isDailyVideoCall(calEvent.videoCallData)) {
+    const meetingUrl = getVideoCallUrlFromCalEvent(calEvent);
+    if (meetingUrl) {
+      return meetingUrl;
+    }
+  }
+
   const providerName = getProviderName(calEvent.location);
   return providerName || calEvent.location || "";
 };
@@ -623,7 +635,9 @@ export const getCancellationReason = (t: TFunction, cancellationReason?: string 
   return `${t("cancellation_reason")}:\n${sanitized}`;
 };
 
-export const isDailyVideoCall = (videoCallData?: VideoCallData): boolean => {
+// Typed structurally rather than as VideoCallData: `type` is all this reads, and
+// getLocation holds a narrower shape than the full VideoCallData.
+export const isDailyVideoCall = (videoCallData?: { type?: string }): boolean => {
   return videoCallData?.type === "daily_video";
 };
 

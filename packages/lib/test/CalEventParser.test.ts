@@ -44,6 +44,32 @@ describe("getLocation", () => {
 
     expect(getVideoCallUrlFromCalEvent(calEvent)).toEqual(getPublicVideoCallUrl(calEvent.uid));
   });
+  // The suppression above is scoped to Cal Video. Google Meet has nothing to do with
+  // Lavela's waiting room, so its link must still reach the calendar event.
+  it("should return the Google Meet hangoutLink", () => {
+    const hangoutLink = "https://meet.google.com/abc-defg-hij";
+    const calEvent = buildCalendarEvent({
+      videoCallData: undefined,
+      location: "integrations:google:meet",
+      additionalInformation: { hangoutLink },
+    });
+
+    expect(getLocation(calEvent)).toEqual(hangoutLink);
+  });
+
+  it("should return the meeting url of a non-Cal-Video provider", () => {
+    const url = "https://zoom.us/j/123456789";
+    const calEvent = buildCalendarEvent({
+      location: "integrations:zoom",
+      videoCallData: buildVideoCallData({
+        type: "zoom_video",
+        url,
+      }),
+    });
+
+    expect(getLocation(calEvent)).toEqual(url);
+  });
+
   it("should return an integration provider name from event", () => {
     const provideName = "Cal.diy";
     const calEvent = buildCalendarEvent({

@@ -262,6 +262,13 @@ That function feeds both the calendar event's `location` field and the `Where:` 
 provider's own Google Calendar and let them bypass Lavela's waiting room — which is where a
 session has to start, because that is the page that opens the room.
 
+**The suppression is Cal Video only**, guarded by `isDailyVideoCall`. Google Meet, Zoom and
+every other provider keep resolving to their real join link, because none of them has a
+waiting room to bypass. The first version of this fork dropped the short-circuit
+unconditionally and silently broke Google Meet and Zoom calendar events — caught only by
+`packages/app-store/googlecalendar/lib/__tests__/CalendarService.test.ts`. If you widen this
+suppression again, those tests are the ones that will tell you.
+
 Deliberately **not** changed, so nothing downstream shifts:
 
 | Still returns the real URL | Where |
@@ -332,7 +339,8 @@ Breaking any of these breaks Lavela without breaking a test in this repo.
 9. `POST /v2/bookings/{uid}/confirm` must keep accepting a UID in the id position.
 10. `/slots` must keep returning an object keyed by date, not a flat array.
 11. Schedule `overrides` must keep accepting `00:00`–`00:00` as an all-day block.
-12. `getLocation()` must keep withholding the Cal Video URL from calendar events, and
+12. `getLocation()` must keep withholding the Cal Video URL from calendar events — and
+    **only** the Cal Video URL; Google Meet and other providers must keep resolving. And
     `meetingUrl` on booking confirm must keep returning it. Reverting the first puts a
     waiting-room bypass in every provider's calendar; changing the second breaks
     `Cal::Booking#confirm` and demo appointments.
