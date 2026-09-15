@@ -43,6 +43,10 @@ function getTestExclude() {
   const baseExclude = [
     "**/node_modules/**",
     "**/dist/**",
+    // Next.js compiles everything under apps/web/pages/api, test files included, so the
+    // build output contains .test.js copies of real tests. Without this they get collected
+    // and run as tests — stale, unbuildable, and throwing unhandled rejections.
+    "**/.next/**",
     "apps/api/v2/**/*.spec.ts",
     "__checks__/**/*.spec.ts",
   ];
