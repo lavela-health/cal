@@ -3,6 +3,7 @@ import { router } from "../../../trpc";
 import { ZCalendarOverlayInputSchema } from "./calendarOverlay.schema";
 import { scheduleRouter } from "./schedule/_router";
 import { ZListTeamAvailaiblityScheme } from "./team/listTeamAvailability.schema";
+import { ZNextSlotsInputSchema } from "./team/nextSlots.schema";
 import { ZUserInputSchema } from "./user.schema";
 
 type AvailabilityRouterHandlerCache = {
@@ -10,6 +11,7 @@ type AvailabilityRouterHandlerCache = {
   user?: typeof import("./user.handler").userHandler;
   calendarOverlay?: typeof import("./calendarOverlay.handler").calendarOverlayHandler;
   listTeamAvailability?: typeof import("./team/listTeamAvailability.handler").listTeamAvailabilityHandler;
+  nextSlots?: typeof import("./team/nextSlots.handler").nextSlotsHandler;
 };
 
 export const availabilityRouter = router({
@@ -36,6 +38,11 @@ export const availabilityRouter = router({
       ctx,
       input,
     });
+  }),
+  nextSlots: authedProcedure.input(ZNextSlotsInputSchema).query(async ({ ctx, input }) => {
+    const { nextSlotsHandler } = await import("./team/nextSlots.handler");
+
+    return nextSlotsHandler({ ctx, input });
   }),
   schedule: scheduleRouter,
   calendarOverlay: authedProcedure.input(ZCalendarOverlayInputSchema).query(async ({ ctx, input }) => {

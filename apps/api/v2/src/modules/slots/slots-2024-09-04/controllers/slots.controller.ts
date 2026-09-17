@@ -2,6 +2,7 @@ import { SUCCESS_STATUS } from "@calcom/platform-constants";
 import {
   ApiResponse,
   GetReservedSlotOutput_2024_09_04 as GetReservedSlotOutputType_2024_09_04,
+  GetNextSlotsInput_2024_09_04,
   GetSlotsInput_2024_09_04,
   GetSlotsInputPipe,
   ReserveSlotInput_2024_09_04,
@@ -36,8 +37,10 @@ import {
 } from "@/modules/auth/decorators/get-optional-user/get-optional-user.decorator";
 import { OptionalApiAuthGuard } from "@/modules/auth/guards/optional-api-auth/optional-api-auth.guard";
 import { GetReservedSlotOutput_2024_09_04 } from "@/modules/slots/slots-2024-09-04/outputs/get-reserved-slot.output";
+import { GetNextSlotsOutput_2024_09_04 } from "@/modules/slots/slots-2024-09-04/outputs/get-next-slots.output";
 import { GetSlotsOutput_2024_09_04 } from "@/modules/slots/slots-2024-09-04/outputs/get-slots.output";
 import { ReserveSlotOutputResponse_2024_09_04 } from "@/modules/slots/slots-2024-09-04/outputs/reserve-slot.output";
+import { NextSlotsService_2024_09_04 } from "@/modules/slots/slots-2024-09-04/services/next-slots.service";
 import { SlotsService_2024_09_04 } from "@/modules/slots/slots-2024-09-04/services/slots.service";
 
 @Controller({
@@ -55,7 +58,10 @@ import { SlotsService_2024_09_04 } from "@/modules/slots/slots-2024-09-04/servic
   },
 })
 export class SlotsController_2024_09_04 {
-  constructor(private readonly slotsService: SlotsService_2024_09_04) {}
+  constructor(
+    private readonly slotsService: SlotsService_2024_09_04,
+    private readonly nextSlotsService: NextSlotsService_2024_09_04
+  ) {}
 
   @Get("/")
   @ApiOperation({
@@ -261,6 +267,30 @@ export class SlotsController_2024_09_04 {
     @Query(new GetSlotsInputPipe()) query: GetSlotsInput_2024_09_04
   ): Promise<GetSlotsOutput_2024_09_04> {
     const slots = await this.slotsService.getAvailableSlots(query);
+
+    return {
+      data: slots,
+      status: SUCCESS_STATUS,
+    };
+  }
+
+  @Get("/next")
+  @UseGuards(OptionalApiAuthGuard)
+  @ApiOperation({
+    summary: "Get the next available time slots for an event type",
+    description: `
+      Returns the soonest available slots as a flat, time-ordered array, without the caller having to pick a date range.
+
+      The event type is identified either by 'eventTypeId', or by 'username' plus 'eventTypeSlug'.
+
+      Unlike '/v2/slots', the response is an array rather than an object keyed by date, and it is capped by 'limit' rather than by an end date. A response shorter than 'limit' means no further slots exist within 'maxHorizonDays'.
+
+      The event type's minimum booking notice is respected, so a slot inside the notice window is never returned.
+      `,
+  })
+  @DocsResponse({ status: 200, type: GetNextSlotsOutput_2024_09_04 })
+  async getNextSlots(@Query() query: GetNextSlotsInput_2024_09_04): Promise<GetNextSlotsOutput_2024_09_04> {
+    const slots = await this.nextSlotsService.getNextSlotsForEventType(query);
 
     return {
       data: slots,

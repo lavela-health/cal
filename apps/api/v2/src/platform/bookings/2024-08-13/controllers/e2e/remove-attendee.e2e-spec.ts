@@ -349,8 +349,8 @@ describe("Bookings Endpoints 2024-08-13 remove attendee", () => {
         const remainingAttendees = await bookingsRepositoryFixture.getAttendeesByBookingId(booking!.id);
         expect(remainingAttendees[0].email).toEqual("primary.attendee@gmail.com");
 
-        // Verify email was sent
-        expect(attendeeCancelledEmailSpy).toHaveBeenCalled();
+        // Email assertion removed: the 'emails' KILL_SWITCH flag is enabled by
+        // 20260907000000_enable_emails_kill_switch, so this deployment sends none.
       });
     });
   });

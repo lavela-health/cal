@@ -1,10 +1,23 @@
 import { BusyTimesService } from "@calcom/features/busyTimes/services/getBusyTimes";
 import { NoSlotsNotificationService } from "@calcom/features/slots/handleNotificationWhenNoSlots";
 import { AvailableSlotsService } from "@calcom/trpc/server/routers/viewer/slots/util";
+import {
+  NEXT_SLOTS_DEFAULT_MAX_HORIZON_DAYS,
+  NextSlotsService,
+} from "@calcom/trpc/server/routers/viewer/slots/nextSlots";
 
 export type { GetScheduleOptions } from "@calcom/trpc/server/routers/viewer/slots/types";
 
+export type {
+  ISlotsProvider,
+  NextSlot,
+  NextSlotCandidate,
+  NextSlotUser,
+} from "@calcom/trpc/server/routers/viewer/slots/nextSlots";
+
 export { AvailableSlotsService };
+
+export { NextSlotsService, NEXT_SLOTS_DEFAULT_MAX_HORIZON_DAYS };
 
 export { BusyTimesService };
 

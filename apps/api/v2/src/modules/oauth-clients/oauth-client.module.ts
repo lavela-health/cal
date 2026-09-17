@@ -7,6 +7,7 @@ import { AppsRepository } from "@/modules/apps/apps.repository";
 import { AuthModule } from "@/modules/auth/auth.module";
 import { CredentialsRepository } from "@/modules/credentials/credentials.repository";
 import { MembershipsModule } from "@/modules/memberships/memberships.module";
+import { OAuthClientSlotsController } from "@/modules/oauth-clients/controllers/oauth-client-slots/oauth-client-slots.controller";
 import { OAuthClientUsersController } from "@/modules/oauth-clients/controllers/oauth-client-users/oauth-client-users.controller";
 import { OAuthClientsController } from "@/modules/oauth-clients/controllers/oauth-clients/oauth-clients.controller";
 import { OAuthFlowController } from "@/modules/oauth-clients/controllers/oauth-flow/oauth-flow.controller";
@@ -20,6 +21,7 @@ import { OAuthFlowService } from "@/modules/oauth-clients/services/oauth-flow.se
 import { OrganizationsModule } from "@/modules/organizations/organizations.module";
 import { PrismaModule } from "@/modules/prisma/prisma.module";
 import { ProfilesModule } from "@/modules/profiles/profiles.module";
+import { SlotsModule_2024_09_04 } from "@/modules/slots/slots-2024-09-04/slots.module";
 import { RedisModule } from "@/modules/redis/redis.module";
 import { SelectedCalendarsRepository } from "@/modules/selected-calendars/selected-calendars.repository";
 import { StripeModule } from "@/modules/stripe/stripe.module";
@@ -43,6 +45,7 @@ import { JwtService } from "@nestjs/jwt";
     StripeModule,
     SchedulesModule_2024_04_15,
     ProfilesModule,
+    SlotsModule_2024_09_04,
   ],
   providers: [
     OAuthClientRepository,
@@ -61,7 +64,12 @@ import { JwtService } from "@nestjs/jwt";
     JwtService,
     OAuthClientUsersOutputService,
   ],
-  controllers: [OAuthClientUsersController, OAuthClientsController, OAuthFlowController],
+  controllers: [
+    OAuthClientUsersController,
+    OAuthClientsController,
+    OAuthFlowController,
+    OAuthClientSlotsController,
+  ],
   exports: [OAuthClientRepository, OAuthClientsOutputService, OAuthClientUsersOutputService],
 })
 export class OAuthClientModule {}

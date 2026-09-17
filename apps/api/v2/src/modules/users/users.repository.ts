@@ -213,6 +213,30 @@ export class UsersRepository {
     });
   }
 
+  async findManagedUsersWithBookableEventTypes(oauthClientId: string, eventTypeSlug?: string) {
+    return this.dbRead.prisma.user.findMany({
+      where: {
+        platformOAuthClients: { some: { id: oauthClientId } },
+        isPlatformManaged: true,
+      },
+      select: {
+        id: true,
+        username: true,
+        name: true,
+        // `ownedEventTypes`, not `eventTypes` — the latter is the user_eventtype
+        // many-to-many, while this is the `userId` owner relation that decides whose
+        // event type it is.
+        ownedEventTypes: {
+          where: {
+            hidden: false,
+            ...(eventTypeSlug ? { slug: eventTypeSlug } : {}),
+          },
+          select: { id: true, slug: true, length: true },
+        },
+      },
+    });
+  }
+
   async findManagedUsersByOAuthClientIdAndEmails(
     oauthClientId: string,
     cursor: number,
