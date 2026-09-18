@@ -25,6 +25,39 @@
             }
           },
           {
+            "name": "after",
+            "required": false,
+            "in": "query",
+            "description": "Only return slots starting after this time. Must be in UTC timezone as an ISO 8601 datestring. Defaults to now.",
+            "schema": {
+              "example": "2050-09-05T09:00:00Z",
+              "type": "string"
+            }
+          },
+          {
+            "name": "timeZone",
+            "required": false,
+            "in": "query",
+            "description": "Time zone in which the slots should be returned. Defaults to UTC.",
+            "schema": {
+              "example": "Europe/Rome",
+              "type": "string"
+            }
+          },
+          {
+            "name": "maxHorizonDays",
+            "required": false,
+            "in": "query",
+            "description": "How far into the future to search before giving up. Fewer slots than asked for means this horizon held no more.",
+            "schema": {
+              "minimum": 1,
+              "maximum": 365,
+              "default": 90,
+              "example": 90,
+              "type": "number"
+            }
+          },
+          {
             "name": "limit",
             "required": true,
             "in": "query",
@@ -34,6 +67,55 @@
               "maximum": 50,
               "example": 5,
               "type": "number"
+            }
+          },
+          {
+            "name": "eventTypeSlug",
+            "required": false,
+            "in": "query",
+            "description": "Restrict the search to each managed user's event type with this slug. Defaults to every bookable event type they own.",
+            "schema": {
+              "example": "intro",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetNextSlotsOutput_2024_09_04"
+                }
+              }
+            }
+          }
+        },
+        "tags": ["Platform / Managed Users"]
+      }
+    },
+    "/v2/oauth-clients/{clientId}/slots/next-per-user": {
+      "get": {
+        "operationId": "OAuthClientSlotsController_getNextSlotsPerUser",
+        "summary": "Get the next available time slots of each managed user",
+        "description": "\n      Returns one entry per managed user, carrying that user's own soonest slots — unlike '/slots/next', which merges every user into one globally time-ordered list and so can exhaust its limit on the busiest calendars before a quieter user's first opening appears.\n\n      Three states are distinguishable, and they mean different things:\n\n      - the user is **absent** from 'data' — they own no bookable event type, so nothing is known or claimed about their availability\n      - the user is present with an empty 'slots' array — they were searched and have nothing within 'maxHorizonDays'\n      - the user is present with slots — their soonest openings, ascending by 'start'\n\n      'searchFailed' is true when every one of that user's event types failed to be searched (an unreachable calendar, say). An empty 'slots' alongside it asserts nothing about availability, so do not present it as fully booked.\n\n      By default every bookable event type a user owns is searched and the soonest slots across all of them are returned, so durations can differ within one user — use each slot's 'eventTypeId' and 'duration' to tell them apart, or pass 'eventTypeSlug' to narrow the search.\n\n      The 'maxHorizonDays' default of 90 days is what decides how long a quiet user searches before coming back empty.\n      ",
+        "parameters": [
+          {
+            "name": "x-cal-secret-key",
+            "in": "header",
+            "description": "OAuth client secret key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "clientId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
             }
           },
           {
@@ -60,13 +142,26 @@
             "name": "maxHorizonDays",
             "required": false,
             "in": "query",
-            "description": "How far into the future to search before giving up. A response shorter than 'limit' means this horizon held no more slots.",
+            "description": "How far into the future to search before giving up. Fewer slots than asked for means this horizon held no more.",
             "schema": {
               "minimum": 1,
               "maximum": 365,
               "default": 90,
               "example": 90,
               "type": "number"
+            }
+          },
+          {
+            "name": "userIds",
+            "required": false,
+            "in": "query",
+            "description": "Restrict the search to these managed user IDs, repeated or comma-separated. Defaults to every managed user of the client. Bounding the search here avoids paying for users the caller will not render.",
+            "schema": {
+              "example": [412, 518],
+              "type": "array",
+              "items": {
+                "type": "number"
+              }
             }
           },
           {
@@ -78,6 +173,19 @@
               "example": "intro",
               "type": "string"
             }
+          },
+          {
+            "name": "slotsPerUser",
+            "required": false,
+            "in": "query",
+            "description": "How many slots to return per user.",
+            "schema": {
+              "minimum": 1,
+              "maximum": 10,
+              "default": 1,
+              "example": 1,
+              "type": "number"
+            }
           }
         ],
         "responses": {
@@ -86,7 +194,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/GetNextSlotsOutput_2024_09_04"
+                  "$ref": "#/components/schemas/GetNextSlotsPerUserOutput_2024_09_04"
                 }
               }
             }
@@ -5627,18 +5735,6 @@
             }
           },
           {
-            "name": "limit",
-            "required": true,
-            "in": "query",
-            "description": "How many slots to return.",
-            "schema": {
-              "minimum": 1,
-              "maximum": 50,
-              "example": 5,
-              "type": "number"
-            }
-          },
-          {
             "name": "after",
             "required": false,
             "in": "query",
@@ -5662,12 +5758,24 @@
             "name": "maxHorizonDays",
             "required": false,
             "in": "query",
-            "description": "How far into the future to search before giving up. A response shorter than 'limit' means this horizon held no more slots.",
+            "description": "How far into the future to search before giving up. Fewer slots than asked for means this horizon held no more.",
             "schema": {
               "minimum": 1,
               "maximum": 365,
               "default": 90,
               "example": 90,
+              "type": "number"
+            }
+          },
+          {
+            "name": "limit",
+            "required": true,
+            "in": "query",
+            "description": "How many slots to return.",
+            "schema": {
+              "minimum": 1,
+              "maximum": 50,
+              "example": 5,
               "type": "number"
             }
           },
@@ -7532,6 +7640,75 @@
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/NextSlot_2024_09_04"
+            }
+          }
+        },
+        "required": ["status", "data"]
+      },
+      "NextSlotBase_2024_09_04": {
+        "type": "object",
+        "properties": {
+          "start": {
+            "type": "string",
+            "description": "Start time of the slot."
+          },
+          "end": {
+            "type": "string",
+            "description": "End time of the slot."
+          },
+          "duration": {
+            "type": "number",
+            "description": "Duration of the slot in minutes."
+          },
+          "eventTypeId": {
+            "type": "number",
+            "description": "ID of the event type this slot belongs to."
+          },
+          "eventTypeSlug": {
+            "type": "string",
+            "description": "Slug of the event type this slot belongs to."
+          }
+        },
+        "required": ["start", "end", "duration", "eventTypeId", "eventTypeSlug"]
+      },
+      "NextSlotsForUser_2024_09_04": {
+        "type": "object",
+        "properties": {
+          "user": {
+            "description": "The user these slots are bookable with.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/NextSlotUser_2024_09_04"
+              }
+            ]
+          },
+          "slots": {
+            "description": "This user's soonest slots, ascending by start. Empty means the search found nothing within 'maxHorizonDays'.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/NextSlotBase_2024_09_04"
+            }
+          },
+          "searchFailed": {
+            "type": "boolean",
+            "description": "True when every one of this user's event types failed to be searched, so an empty 'slots' asserts nothing about their availability. Callers that render 'fully booked' should show nothing instead.",
+            "example": false
+          }
+        },
+        "required": ["user", "slots", "searchFailed"]
+      },
+      "GetNextSlotsPerUserOutput_2024_09_04": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "example": "success",
+            "enum": ["success", "error"]
+          },
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/NextSlotsForUser_2024_09_04"
             }
           }
         },
