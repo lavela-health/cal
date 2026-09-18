@@ -213,12 +213,23 @@ export class UsersRepository {
     });
   }
 
-  async findManagedUsersWithBookableEventTypes(oauthClientId: string, eventTypeSlug?: string) {
+  async findManagedUsersWithBookableEventTypes({
+    oauthClientId,
+    eventTypeSlug,
+    userIds,
+  }: {
+    oauthClientId: string;
+    eventTypeSlug?: string;
+    userIds?: number[];
+  }) {
     return this.dbRead.prisma.user.findMany({
       where: {
         platformOAuthClients: { some: { id: oauthClientId } },
         isPlatformManaged: true,
+        ...(userIds?.length ? { id: { in: userIds } } : {}),
       },
+      // Deterministic order, so a caller diffing responses across renders sees a stable sequence.
+      orderBy: { id: "asc" },
       select: {
         id: true,
         username: true,
