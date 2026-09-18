@@ -293,4 +293,199 @@ describe("NextSlotsService", () => {
       })
     );
   });
+
+  describe("getNextSlotsPerGroup", () => {
+    it("answers each group independently, soonest first", async () => {
+      const { provider } = stubProvider({
+        1: [["2026-09-12T15:00:00.000Z", "2026-09-12T14:00:00.000Z"]],
+        2: [["2026-09-13T09:00:00.000Z"]],
+      });
+      const service = new NextSlotsService(provider);
+
+      const result = await service.getNextSlotsPerGroup({
+        groups: new Map([
+          ["a", [candidate(1)]],
+          ["b", [candidate(2)]],
+        ]),
+        limit: 2,
+        after: AFTER,
+      });
+
+      expect(result.get("a")?.slots.map((slot) => slot.start)).toEqual([
+        "2026-09-12T14:00:00.000Z",
+        "2026-09-12T15:00:00.000Z",
+      ]);
+      expect(result.get("b")?.slots.map((slot) => slot.start)).toEqual(["2026-09-13T09:00:00.000Z"]);
+    });
+
+    it("merges a group's event types into one soonest-first answer", async () => {
+      const { provider } = stubProvider({
+        1: [["2026-09-12T15:00:00.000Z"]],
+        2: [["2026-09-12T14:00:00.000Z"]],
+      });
+      const service = new NextSlotsService(provider);
+
+      const result = await service.getNextSlotsPerGroup({
+        groups: new Map([[7, [candidate(1), candidate(2)]]]),
+        limit: 2,
+        after: AFTER,
+      });
+
+      // One answer for the group, not one per event type.
+      expect(result.get(7)?.slots.map((slot) => slot.eventTypeId)).toEqual([2, 1]);
+    });
+
+    it("caps each group at limit rather than the groups together", async () => {
+      const { provider } = stubProvider({
+        1: [["2026-09-12T14:00:00.000Z", "2026-09-12T15:00:00.000Z", "2026-09-12T16:00:00.000Z"]],
+        2: [["2026-09-12T14:30:00.000Z", "2026-09-12T15:30:00.000Z"]],
+      });
+      const service = new NextSlotsService(provider);
+
+      const result = await service.getNextSlotsPerGroup({
+        groups: new Map([
+          [1, [candidate(1)]],
+          [2, [candidate(2)]],
+        ]),
+        limit: 1,
+        after: AFTER,
+      });
+
+      expect(result.get(1)?.slots).toHaveLength(1);
+      expect(result.get(2)?.slots).toHaveLength(1);
+    });
+
+    it("reports an empty horizon as searched, not failed", async () => {
+      const { provider } = stubProvider({ 1: [[], [], []] });
+      const service = new NextSlotsService(provider);
+
+      const result = await service.getNextSlotsPerGroup({
+        groups: new Map([[1, [candidate(1)]]]),
+        limit: 1,
+        after: AFTER,
+      });
+
+      expect(result.get(1)).toEqual({ slots: [], searchFailed: false });
+    });
+
+    it("flags a group whose every candidate threw, so emptiness is not mistaken for fully booked", async () => {
+      const provider: ISlotsProvider = {
+        async getAvailableSlots({ input }: GetScheduleOptions) {
+          if (input.eventTypeId === 1) throw new Error("calendar unreachable");
+          return { slots: { "2026-09-12": [{ time: "2026-09-12T14:00:00.000Z" }] } };
+        },
+      };
+      const service = new NextSlotsService(provider);
+
+      const result = await service.getNextSlotsPerGroup({
+        groups: new Map([
+          ["broken", [candidate(1)]],
+          ["healthy", [candidate(2)]],
+        ]),
+        limit: 1,
+        after: AFTER,
+      });
+
+      expect(result.get("broken")).toEqual({ slots: [], searchFailed: true });
+      expect(result.get("healthy")?.searchFailed).toBe(false);
+    });
+
+    it("does not flag a group where only some candidates threw", async () => {
+      const provider: ISlotsProvider = {
+        async getAvailableSlots({ input }: GetScheduleOptions) {
+          if (input.eventTypeId === 1) throw new Error("calendar unreachable");
+          return { slots: {} };
+        },
+      };
+      const service = new NextSlotsService(provider);
+
+      const result = await service.getNextSlotsPerGroup({
+        groups: new Map([["partial", [candidate(1), candidate(2)]]]),
+        limit: 1,
+        after: AFTER,
+      });
+
+      // Event type 2 answered, so "fully booked" is a claim we can stand behind.
+      expect(result.get("partial")).toEqual({ slots: [], searchFailed: false });
+    });
+
+    it("answers a group with no candidates as empty rather than failed", async () => {
+      const { provider } = stubProvider({});
+      const service = new NextSlotsService(provider);
+
+      const result = await service.getNextSlotsPerGroup({
+        groups: new Map([[1, [] as NextSlotCandidate[]]]),
+        limit: 1,
+        after: AFTER,
+      });
+
+      // Present but empty, and explicitly not a failure: there was nothing to search.
+      expect(result.get(1)).toEqual({ slots: [], searchFailed: false });
+    });
+
+    it("honours the concurrency cap across groups", async () => {
+      const { provider, getMaxInFlight } = stubProvider(
+        Object.fromEntries(
+          Array.from({ length: 10 }, (_, index) => [index + 1, [["2026-09-12T14:00:00.000Z"]]])
+        )
+      );
+      const service = new NextSlotsService(provider, 3);
+
+      await service.getNextSlotsPerGroup({
+        groups: new Map(Array.from({ length: 10 }, (_, index) => [index, [candidate(index + 1)]])),
+        limit: 1,
+        after: AFTER,
+      });
+
+      expect(getMaxInFlight()).toBeLessThanOrEqual(3);
+    });
+
+    it("widens the window per group, independently", async () => {
+      const { provider, windows } = stubProvider({
+        1: [["2026-09-12T14:00:00.000Z"]],
+        2: [[], ["2026-10-01T14:00:00.000Z"]],
+      });
+      const service = new NextSlotsService(provider);
+
+      const result = await service.getNextSlotsPerGroup({
+        groups: new Map([
+          [1, [candidate(1)]],
+          [2, [candidate(2)]],
+        ]),
+        limit: 1,
+        after: AFTER,
+      });
+
+      expect(result.get(1)?.slots).toHaveLength(1);
+      expect(result.get(2)?.slots.map((slot) => slot.start)).toEqual(["2026-10-01T14:00:00.000Z"]);
+      // The group that answered on the 7-day window was not re-queried on the 30-day one.
+      expect(windows.filter((window) => window.eventTypeId === 1)).toHaveLength(1);
+      expect(windows.filter((window) => window.eventTypeId === 2)).toHaveLength(2);
+    });
+
+    it("passes after, timeZone and maxHorizonDays through to each group", async () => {
+      const getAvailableSlots = vi.fn(async () => ({ slots: {} }));
+      const service = new NextSlotsService({ getAvailableSlots });
+
+      await service.getNextSlotsPerGroup({
+        groups: new Map([[1, [candidate(1, { duration: 25 })]]]),
+        limit: 1,
+        after: AFTER,
+        timeZone: "Europe/Rome",
+        maxHorizonDays: 7,
+      });
+
+      expect(getAvailableSlots).toHaveBeenCalledTimes(1);
+      expect(getAvailableSlots).toHaveBeenCalledWith(
+        expect.objectContaining({
+          input: expect.objectContaining({
+            timeZone: "Europe/Rome",
+            duration: 25,
+            startTime: "2026-09-10T00:00:00.000Z",
+            endTime: "2026-09-16T23:59:59.999Z",
+          }),
+        })
+      );
+    });
+  });
 });

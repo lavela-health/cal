@@ -35,6 +35,16 @@ export type NextSlot = {
   user?: NextSlotUser;
 };
 
+/**
+ * One group's answer. `searchFailed` separates "searched, genuinely nothing" from "could not
+ * search": every candidate in the group threw, so an empty `slots` here asserts nothing about
+ * availability. Consumers that render "fully booked" need the two apart.
+ */
+export type NextSlotsResult = {
+  slots: NextSlot[];
+  searchFailed: boolean;
+};
+
 export interface ISlotsProvider {
   getAvailableSlots(args: GetScheduleOptions): Promise<IGetAvailableSlots>;
 }
@@ -48,6 +58,11 @@ export type GetNextSlotsParams = {
 };
 
 export type GetNextSlotPerCandidateParams = Omit<GetNextSlotsParams, "limit">;
+
+export type GetNextSlotsPerGroupParams<TKey> = Omit<GetNextSlotsParams, "candidates"> & {
+  /** Candidates searched independently per key. One key per managed user, in practice. */
+  groups: Map<TKey, NextSlotCandidate[]>;
+};
 
 /**
  * The windows to try, in order, clamped to the caller's horizon. The last entry is always
@@ -64,39 +79,29 @@ export class NextSlotsService {
     private readonly concurrency: number = NEXT_SLOTS_DEFAULT_CONCURRENCY
   ) {}
 
+  /** The `limit` soonest slots across every candidate. */
+  async getNextSlots(params: GetNextSlotsParams): Promise<NextSlot[]> {
+    const { slots } = await this.search(params);
+    return slots;
+  }
+
   /**
-   * The `limit` soonest slots across every candidate.
+   * The `limit` soonest slots for each group, searched independently.
    *
-   * Widening stops as soon as a window yields `limit` slots: every slot outside the window
-   * starts later than every slot inside it, so a full window is already the global answer.
+   * Grouping is what makes this different from calling `getNextSlots` per candidate: a managed
+   * user owning several event types is one group, so the answer is that user's soonest openings
+   * across all of them rather than one answer per event type. Keys absent from `groups` stay
+   * absent from the result — the caller decides what "no candidates" means.
    */
-  async getNextSlots({
-    candidates,
-    limit,
-    after: requestedAfter = new Date(),
-    maxHorizonDays = NEXT_SLOTS_DEFAULT_MAX_HORIZON_DAYS,
-    timeZone,
-  }: GetNextSlotsParams): Promise<NextSlot[]> {
-    if (!candidates.length || limit < 1) return [];
-
-    // A caller-supplied `after` in the past would spend the whole first window on days
-    // that have already happened, and `getStartTime` clamps the query to now regardless.
-    const now = new Date();
-    const after = requestedAfter.getTime() < now.getTime() ? now : requestedAfter;
-
-    let found: NextSlot[] = [];
-    for (const windowDays of buildWindows(maxHorizonDays)) {
-      const batches = await this.mapWithConcurrency(candidates, (candidate) =>
-        this.slotsForCandidate({ candidate, after, windowDays, timeZone })
-      );
-      const windowSlots = sortSlots(batches.flat()).slice(0, limit);
-      // Never regress on a widening. A wider window is normally a superset, but a
-      // candidate whose calendar times out on the second pass would otherwise erase the
-      // slots the first pass already found for it.
-      if (windowSlots.length > found.length) found = windowSlots;
-      if (found.length >= limit) break;
-    }
-    return found;
+  async getNextSlotsPerGroup<TKey>({
+    groups,
+    ...search
+  }: GetNextSlotsPerGroupParams<TKey>): Promise<Map<TKey, NextSlotsResult>> {
+    const entries = await this.mapWithConcurrency(
+      Array.from(groups),
+      async ([key, candidates]) => [key, await this.search({ ...search, candidates })] as const
+    );
+    return new Map(entries);
   }
 
   /** The soonest slot for each candidate, or null when the horizon holds none. */
@@ -119,6 +124,41 @@ export class NextSlotsService {
     return new Map(results);
   }
 
+  /**
+   * Widening stops as soon as a window yields `limit` slots: every slot outside the window
+   * starts later than every slot inside it, so a full window is already the global answer.
+   */
+  private async search({
+    candidates,
+    limit,
+    after: requestedAfter = new Date(),
+    maxHorizonDays = NEXT_SLOTS_DEFAULT_MAX_HORIZON_DAYS,
+    timeZone,
+  }: GetNextSlotsParams): Promise<NextSlotsResult> {
+    if (!candidates.length || limit < 1) return { slots: [], searchFailed: false };
+
+    // A caller-supplied `after` in the past would spend the whole first window on days
+    // that have already happened, and `getStartTime` clamps the query to now regardless.
+    const now = new Date();
+    const after = requestedAfter.getTime() < now.getTime() ? now : requestedAfter;
+
+    let found: NextSlot[] = [];
+    let anyCandidateSearched = false;
+    for (const windowDays of buildWindows(maxHorizonDays)) {
+      const batches = await this.mapWithConcurrency(candidates, (candidate) =>
+        this.slotsForCandidate({ candidate, after, windowDays, timeZone })
+      );
+      if (batches.some((batch) => !batch.failed)) anyCandidateSearched = true;
+      const windowSlots = sortSlots(batches.flatMap((batch) => batch.slots)).slice(0, limit);
+      // Never regress on a widening. A wider window is normally a superset, but a
+      // candidate whose calendar times out on the second pass would otherwise erase the
+      // slots the first pass already found for it.
+      if (windowSlots.length > found.length) found = windowSlots;
+      if (found.length >= limit) break;
+    }
+    return { slots: found, searchFailed: !anyCandidateSearched };
+  }
+
   private async slotsForCandidate({
     candidate,
     after,
@@ -129,7 +169,7 @@ export class NextSlotsService {
     after: Date;
     windowDays: number;
     timeZone?: string;
-  }): Promise<NextSlot[]> {
+  }): Promise<{ slots: NextSlot[]; failed: boolean }> {
     // Day-aligned bounds keep the `withSlotsCache` key stable across calls made seconds
     // apart; slots before `after` are filtered out below rather than by the query.
     const startOfDay = new Date(Math.floor(after.getTime() / MS_PER_DAY) * MS_PER_DAY);
@@ -155,14 +195,15 @@ export class NextSlotsService {
         "Skipping candidate whose slots could not be computed",
         safeStringify({ eventTypeId: candidate.eventTypeId, error })
       );
-      return [];
+      return { slots: [], failed: true };
     }
 
-    return Object.values(available.slots)
+    const slots = Object.values(available.slots)
       .flat()
       .filter((slot) => !slot.away)
       .map((slot) => toNextSlot(slot.time, candidate))
       .filter((slot) => new Date(slot.start).getTime() > after.getTime());
+    return { slots, failed: false };
   }
 
   private async mapWithConcurrency<TItem, TResult>(
