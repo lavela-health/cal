@@ -351,8 +351,9 @@ Server-side, from `Cal::Client`. Version headers are pinned per resource — the
 | `/event-types`, `/event-types/{id}` | POST, GET, PATCH | `2024-06-14` | |
 | `/bookings`, `/bookings/{uid}`, `/bookings/{uid}/confirm`, `/bookings/{uid}/cancel` | POST, GET | `2024-08-13` | |
 | `/slots` | GET | `2024-09-04` | |
-| `/slots/next` | GET | `2024-09-04` | Built for Lavela, not yet called |
+| `/slots/next` | GET | `2024-09-04` | Post-intake match screen, since lavela-health #910 |
 | `/oauth-clients/{clientId}/slots/next` | GET | — | Built for Lavela, not yet called |
+| `/oauth-clients/{clientId}/slots/next-per-user` | GET | — | Therapist selection list (`matching/providers#index`), one call per render |
 | `/schedules`, `/schedules/{id}` | GET, POST, PATCH | `2024-06-11` | |
 
 Response shapes Lavela parses positionally:
@@ -367,6 +368,9 @@ Response shapes Lavela parses positionally:
 - Next slots → `data` is a **flat array** ordered by `start`, each entry carrying `start`,
   `end`, `duration`, `eventTypeId`, `eventTypeSlug`, and — on the OAuth client route —
   `user` with `id`, `username`, `name`
+- Next slots per user → `data` is an array of `{ user, slots, searchFailed }`, one entry per
+  managed user owning a bookable event type. Lavela indexes it by `user.id`; `slots` is the
+  flat next-slots shape without the per-slot `user`
 - Errors → `error.message`
 
 ## 11. Invariants
@@ -398,6 +402,14 @@ Breaking any of these breaks Lavela without breaking a test in this repo.
     returning a flat array ordered by `start`, not an object keyed by date. This is the
     deliberate mirror of #10: the two slot surfaces have different shapes on purpose, and
     unifying them breaks one consumer or the other.
+14. `/oauth-clients/{clientId}/slots/next-per-user` must keep answering **per user**, and its
+    three states must stay distinguishable: a user **absent** from `data` owns no bookable
+    event type, a user present with an empty `slots` array was searched and has nothing inside
+    `maxHorizonDays`, and `searchFailed: true` means the search itself failed. Lavela renders a
+    different sentence for each — nothing, "Fully booked", and nothing again — so collapsing
+    any two of them puts a false claim about a therapist's availability on a member's screen.
+    None of this is visible from this repo's tests. The route must also keep grouping a user's
+    event types into one answer rather than one entry per event type.
 
 ## 12. Deployment coupling
 
