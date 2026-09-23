@@ -243,6 +243,15 @@ sends the browser back to Lavela's `/session/complete`, which routes by role.
 **This is why the web app cannot be reduced to an API-only deployment**, and why commit
 `4f381e2e28` had to teach `redirectUrlOnExit` to accept localhost URLs.
 
+### The join prompt never offers an account
+
+Patients and providers both arrive at `/video/{uid}` with no Cal session, and the join
+dialog in `apps/web/modules/videos/views/videos-single-view.tsx` must keep it that way:
+the link *is* the credential. Upstream's "Sign in to track no-shows" footer is removed and
+the submit button reads "Join", not "Join call as guest", so nothing on the page invites a
+patient to create an account on this instance. Restoring either sends Lavela users into a
+Cal signup flow that has no place in the product.
+
 Admins also open `{web_url}/bookings/upcoming` from Lavela's admin home, which requires a
 real password login on this instance.
 
@@ -378,7 +387,8 @@ Response shapes Lavela parses positionally:
 Breaking any of these breaks Lavela without breaking a test in this repo.
 
 1. `/video/{uid}` must stay served by the web app, and `calVideoSettings.redirectUrlOnExit`
-   must keep redirecting on exit.
+   must keep redirecting on exit. Its join dialog must keep letting a link holder in by
+   name alone, with no sign-in link and no "guest" framing on the button — see §9.
 2. `GET /v2/atoms/event-types/{slug}/public?username=` must stay unauthenticated and must
    keep resolving platform-managed users by username.
 3. Platform-managed username generation must stay stable. Lavela caches it.

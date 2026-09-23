@@ -1,12 +1,7 @@
 "use client";
 
 import dayjs from "@calcom/dayjs";
-import {
-  RECORDING_DEFAULT_ICON,
-  TRANSCRIPTION_STOPPED_ICON,
-  WEBAPP_URL,
-  WEBSITE_URL,
-} from "@calcom/lib/constants";
+import { RECORDING_DEFAULT_ICON, TRANSCRIPTION_STOPPED_ICON, WEBSITE_URL } from "@calcom/lib/constants";
 import { formatToLocalizedDate, formatToLocalizedTime } from "@calcom/lib/dayjs";
 import { emailRegex } from "@calcom/lib/emailSchema";
 import { useLocale } from "@calcom/lib/hooks/useLocale";
@@ -497,7 +492,7 @@ export function LogInOverlay(props: LogInOverlayProps) {
               className="w-full justify-center"
               onClick={handleContinueAsGuest}
               loading={isLoading}>
-              {t("join_call_as_guest")}
+              {t("join")}
             </Button>
           </div>
 
@@ -506,15 +501,6 @@ export function LogInOverlay(props: LogInOverlayProps) {
               <p className="font-medium text-error text-sm">{error}</p>
             </div>
           )}
-
-          <p className="text-center text-sm text-subtle">
-            <a
-              href={`${WEBAPP_URL}/auth/login?callbackUrl=${WEBAPP_URL}/video/${bookingUid}`}
-              className="text-emphasis underline">
-              {t("sign_in")}
-            </a>{" "}
-            {t("to_track_no_shows")}
-          </p>
         </div>
       </DialogContent>
     </Dialog>

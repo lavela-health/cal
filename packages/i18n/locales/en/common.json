@@ -755,6 +755,7 @@
   "continue_as_guest": "Continue as guest",
   "join_as_guest": "Join as guest",
   "join_call_as_guest": "Join call as guest",
+  "join": "Join",
   "ready_to_join": "Ready to join?",
   "enter_name_to_join_call": "Enter your name to join the call",
   "hosted_by": "Hosted by {{name}}",
