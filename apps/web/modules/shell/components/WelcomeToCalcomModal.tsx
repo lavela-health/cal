@@ -15,7 +15,6 @@ const features = [
   "integrate_with_favorite_apps",
   "accept_payments_via_stripe",
   "html_react_embed",
-  "cal_ai_phone_agent",
   "cal_video",
 ];
 
@@ -94,15 +93,7 @@ export function WelcomeToCalcomModal() {
           </div>
         </div>
 
-        <div className="bg-muted border-subtle flex shrink-0 items-center justify-between rounded-b-2xl border-t px-8 py-6">
-          <Button
-            color="minimal"
-            href="https://cal.diy"
-            target="_blank"
-            EndIcon="external-link"
-            className="pointer-events-none opacity-0">
-            {t("learn_more")}
-          </Button>
+        <div className="bg-muted border-subtle flex shrink-0 items-center justify-end rounded-b-2xl border-t px-8 py-6">
           <Button color="primary" onClick={closeModal}>
             {t("continue")}
           </Button>

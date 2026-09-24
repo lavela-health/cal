@@ -35,12 +35,17 @@ export const WEBAPP_URL_FOR_OAUTH = IS_PRODUCTION || IS_DEV ? WEBAPP_URL : "http
 /** @deprecated use `WEBAPP_URL` */
 export const BASE_URL = WEBAPP_URL;
 export const WEBSITE_URL = ensureProtocol(process.env.NEXT_PUBLIC_WEBSITE_URL) || "https://cal.com";
-export const APP_NAME = process.env.NEXT_PUBLIC_APP_NAME || "Cal.diy";
-export const SUPPORT_MAIL_ADDRESS = process.env.NEXT_PUBLIC_SUPPORT_MAIL_ADDRESS || "help@cal.com";
-export const COMPANY_NAME = process.env.NEXT_PUBLIC_COMPANY_NAME || "Cal.com, Inc.";
-export const SENDER_ID = process.env.NEXT_PUBLIC_SENDER_ID || "Cal";
-export const SENDER_NAME = process.env.NEXT_PUBLIC_SENDGRID_SENDER_NAME || "Cal.diy";
+// The fallbacks are Lavela's, not Cal's: these are all NEXT_PUBLIC_ vars inlined at
+// build time, so a build that loses one of them would otherwise quietly ship Cal
+// branding to production rather than failing visibly.
+export const APP_NAME = process.env.NEXT_PUBLIC_APP_NAME || "Lavela Health";
+export const SUPPORT_MAIL_ADDRESS = process.env.NEXT_PUBLIC_SUPPORT_MAIL_ADDRESS || "hello@lavelahealth.com";
+export const COMPANY_NAME = process.env.NEXT_PUBLIC_COMPANY_NAME || "Lavela Health";
+export const SENDER_ID = process.env.NEXT_PUBLIC_SENDER_ID || "Lavela";
+export const SENDER_NAME = process.env.NEXT_PUBLIC_SENDGRID_SENDER_NAME || "Lavela Health";
 export const EMAIL_FROM_NAME = process.env.EMAIL_FROM_NAME || APP_NAME;
+/** Stand-in organizer address on calendar invites when the host's email is hidden. */
+export const HIDDEN_ORGANIZER_EMAIL = `no-reply@${SUPPORT_MAIL_ADDRESS.split("@").at(-1)}`;
 
 // This is the URL from which all Cal Links and their assets are served.
 // Use website URL to make links shorter(cal.com and not app.cal.com)

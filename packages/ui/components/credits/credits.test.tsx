@@ -9,28 +9,28 @@ vi.mock("@calcom/lib/constants", async () => {
     ...actual,
     CALCOM_VERSION: "mockedVersion",
     // Pinned so local NEXT_PUBLIC_COMPANY_NAME branding cannot change the assertions below.
-    COMPANY_NAME: "Cal.com, Inc.",
+    COMPANY_NAME: "Lavela Health",
   };
 });
 
 describe("Tests for Credits component", () => {
-  test("Should render credits section with links", () => {
+  test("Should render the company name and version as plain text", () => {
     render(<Credits />);
 
-    const creditsLinkElement = screen.getByRole("link", { name: /Cal\.com, Inc\./i });
-    expect(creditsLinkElement).toBeInTheDocument();
-    expect(creditsLinkElement).toHaveAttribute("href", "https://go.cal.com/credits");
+    expect(screen.getByText(/Lavela Health/)).toBeInTheDocument();
+    expect(screen.getByText(/mockedVersion/)).toBeInTheDocument();
+  });
 
-    const versionLinkElement = screen.getByRole("link", { name: /mockedVersion/i });
-    expect(versionLinkElement).toBeInTheDocument();
-    expect(versionLinkElement).toHaveAttribute("href", "https://go.cal.com/releases");
+  test("Should not link out to cal.com", () => {
+    render(<Credits />);
+
+    expect(screen.queryByRole("link")).not.toBeInTheDocument();
   });
 
   test("Should render credits section with correct text", () => {
     render(<Credits />);
 
     const currentYear = new Date().getFullYear();
-    const copyrightElement = screen.getByText(`© ${currentYear}`);
-    expect(copyrightElement).toHaveTextContent(`${currentYear}`);
+    expect(screen.getByText(new RegExp(`${currentYear}`))).toBeInTheDocument();
   });
 });
