@@ -1,7 +1,7 @@
 {
-    "name": "Cal.diy",
-    "short_name": "Cal.diy",
-    "description": "Scheduling infrastructure for absolutely everyone.",
+    "name": "Lavela Health",
+    "short_name": "Lavela Health",
+    "description": "Therapy scheduling and video sessions from Lavela Health.",
     "icons": [
         {
             "src": "/api/logo?type=android-chrome-192",
@@ -19,5 +19,5 @@
     "display_override": ["minimal-ui"],
     "display": "standalone",
     "scope": "/",
-    "start_url": "/"  
+    "start_url": "/"
 }

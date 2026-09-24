@@ -49,7 +49,7 @@ export const metadata = {
       {
         rel: "icon-mask",
         url: "/safari-pinned-tab.svg",
-        color: "#000000",
+        color: "#23100b",
       },
       {
         url: "/api/logo?type=favicon-16",
@@ -65,11 +65,11 @@ export const metadata = {
   },
   manifest: "/site.webmanifest",
   other: {
-    "application-TileColor": "#ff0000",
+    "application-TileColor": "#fcfaf9",
   },
+  // No site/creator handle: attributing shared links to @calcom credits the upstream
+  // project. Add Lavela's handle here if one is ever created.
   twitter: {
-    site: "@calcom",
-    creator: "@calcom",
     card: "summary_large_image",
   },
   robots: {

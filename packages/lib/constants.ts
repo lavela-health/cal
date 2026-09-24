@@ -98,9 +98,14 @@ export const PUBLIC_QUICK_AVAILABILITY_ROLLOUT =
 
 /** @deprecated use `WEBAPP_URL` */
 export const NEXT_PUBLIC_BASE_URL = process.env.NEXT_PUBLIC_WEBAPP_URL || `https://${process.env.VERCEL_URL}`;
-export const LOGO = "/calcom-logo-white-word.svg";
-export const LOGO_DARK = "/cal-logo-word-black.svg";
-export const LOGO_ICON = "/cal-com-icon-white.svg";
+// "black"/"white" describe the ink, not the backdrop: the black wordmark is the one
+// that goes on a light surface. The white variants serve dark surfaces — dark mode
+// via /api/logo, and the video call room, which is dark in both themes.
+export const LOGO = "/lavela-logo-wordmark-black.svg";
+export const LOGO_DARK = "/lavela-logo-wordmark-black.svg";
+export const LOGO_ICON = "/lavela-logo-symbol-black.svg";
+export const LOGO_WHITE = "/lavela-logo-wordmark-white.svg";
+export const LOGO_ICON_WHITE = "/lavela-logo-symbol-white.svg";
 export const AVATAR_FALLBACK = "/avatar.svg";
 export const FAVICON_16 = "/favicon-16x16.png";
 export const FAVICON_32 = "/favicon-32x32.png";
