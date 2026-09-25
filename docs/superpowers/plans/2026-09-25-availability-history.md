@@ -20,7 +20,10 @@
 - All UI strings go through `t()` and are added to `packages/i18n/locales/en/common.json`.
 - Comments explain **why**, never **what**.
 - Conventional commits: `feat:`, `fix:`, `refactor:`, `docs:`.
-- Run `yarn type-check:ci --force` and `yarn biome check --write .` before pushing.
+- Run `yarn type-check:ci --force` before pushing.
+- **Lint only the files you changed**: `yarn biome check --write <your files>`. Do NOT run
+  `yarn biome check --write .` — it autofixes ~3000 unrelated files across the monorepo and
+  leaves them as uncommitted churn. Pass explicit paths.
 - `agents/lavela-health-integration.md` must be updated in this same PR (Task 5).
 - Branch is `feat/availability-history`, already created off `main`.
 
@@ -516,7 +519,7 @@ If the concurrency test is flaky, that is a real signal, not a flaky test — th
 
 ```bash
 yarn type-check:ci --force
-yarn biome check --write .
+yarn biome check --write <the files you changed>
 git add packages/prisma/schema.prisma packages/prisma/migrations packages/features/schedules/repositories/ScheduleVersion.integration-test.ts
 git commit -m "feat(availability): capture schedule version history via deferred trigger
 
@@ -732,7 +735,7 @@ Expected: PASS, 6 tests.
 
 ```bash
 yarn type-check:ci --force
-yarn biome check --write .
+yarn biome check --write <the files you changed>
 git add packages/features/schedules/repositories/ScheduleVersionRepository.ts packages/features/schedules/repositories/ScheduleVersionRepository.test.ts
 git commit -m "feat(availability): resolve recorded availability as of a past date
 
@@ -975,7 +978,7 @@ Determine whether managed users can have `travelSchedules` at all. If they can, 
 
 ```bash
 yarn type-check:ci --force
-yarn biome check --write .
+yarn biome check --write <the files you changed>
 git add packages/trpc/server/routers/viewer/availability/team/
 git commit -m "feat(availability): resolve past dates from recorded history in listTeam
 
@@ -1129,7 +1132,7 @@ If a quick manual check is not practical, at minimum run `yarn type-check:ci --f
 - [ ] **Step 7: Commit**
 
 ```bash
-yarn biome check --write .
+yarn biome check --write <the files you changed>
 yarn type-check:ci --force
 git add apps/web/modules/timezone-buddy/components/AvailabilitySliderTable.tsx packages/i18n/locales/en/common.json
 git commit -m "feat(availability): mark past dates as recorded history in the fleet view
@@ -1206,8 +1209,9 @@ Expected: PASS, including the 8 new trigger tests.
 
 - [ ] **Step 4: Lint**
 
-Run: `yarn biome check --write .`
-Then re-run the type check if Biome changed anything.
+Run `yarn biome check --write <the files this branch changed>` — get the list with
+`git diff --name-only $(git merge-base main HEAD)..HEAD`. Never pass `.`; it rewrites the
+whole monorepo. Then re-run the type check if Biome changed anything.
 
 - [ ] **Step 5: Confirm the REST path is unchanged**
 
