@@ -2,8 +2,11 @@ import type { Dayjs } from "@calcom/dayjs";
 import dayjs from "@calcom/dayjs";
 import type { DateRange } from "@calcom/features/schedules/lib/date-ranges";
 import { buildDateRanges } from "@calcom/features/schedules/lib/date-ranges";
+import type { ScheduleVersionAvailability } from "@calcom/features/schedules/repositories/ScheduleVersionRepository";
+import { ScheduleVersionRepository } from "@calcom/features/schedules/repositories/ScheduleVersionRepository";
 import { UserRepository } from "@calcom/features/users/repositories/UserRepository";
 import { prisma } from "@calcom/prisma";
+import type { Availability } from "@calcom/prisma/client";
 import { Prisma } from "@calcom/prisma/client";
 import { MembershipRole } from "@calcom/prisma/enums";
 import { TRPCError } from "@trpc/server";
@@ -100,6 +103,50 @@ async function getTeamMembers({
 
 type Member = Awaited<ReturnType<typeof getTeamMembers>>[number];
 
+type AvailabilitySource = "live" | "recorded" | "unrecorded";
+
+type ResolvedAvailability = {
+  availability: Availability[] | ScheduleVersionAvailability[];
+  timeZone: string | null;
+  source: AvailabilitySource;
+};
+
+async function resolveAvailability(
+  defaultScheduleId: number,
+  dateFrom: Dayjs
+): Promise<ResolvedAvailability | null> {
+  // The caller pads dateFrom back by a day to catch timezone-shifted boundary slots in
+  // buildDateRanges. That buffer would otherwise make "today" look like "yesterday" here and
+  // wrongly route it through the recorded-history path, so recover the actual requested day
+  // before deciding what "past" means and before querying a version "as of" it.
+  const requestedDate = dateFrom.add(1, "day");
+
+  if (!requestedDate.isBefore(dayjs().startOf("day"))) {
+    const schedule = await prisma.schedule.findUnique({
+      where: { id: defaultScheduleId },
+      select: { availability: true, timeZone: true },
+    });
+    return {
+      availability: schedule?.availability ?? [],
+      timeZone: schedule?.timeZone ?? null,
+      source: "live",
+    };
+  }
+
+  const recorded = await new ScheduleVersionRepository(prisma).availabilityAsOf(
+    defaultScheduleId,
+    requestedDate.toDate()
+  );
+
+  // No version covers this date, so it predates capture. Falling back to the live rows here
+  // would answer a question about the past with today's data — the failure this exists to fix.
+  if (!recorded) {
+    return null;
+  }
+
+  return { availability: recorded.availability, timeZone: recorded.timeZone, source: "recorded" };
+}
+
 async function buildMember(member: Member, dateFrom: Dayjs, dateTo: Dayjs) {
   if (!member.user.defaultScheduleId) {
     return {
@@ -112,28 +159,29 @@ async function buildMember(member: Member, dateFrom: Dayjs, dateTo: Dayjs) {
       role: member.role,
       defaultScheduleId: -1,
       dateRanges: [] as DateRange[],
+      // No schedule is a present-tense fact, not a gap in history.
+      availabilitySource: "live" as AvailabilitySource,
     };
   }
 
-  const schedule = await prisma.schedule.findUnique({
-    where: { id: member.user.defaultScheduleId },
-    select: { availability: true, timeZone: true },
-  });
-  const timeZone = schedule?.timeZone || member.user.timeZone;
+  const resolved = await resolveAvailability(member.user.defaultScheduleId, dateFrom);
+  const timeZone = resolved?.timeZone || member.user.timeZone;
 
-  const { dateRanges } = buildDateRanges({
-    dateFrom,
-    dateTo,
-    timeZone,
-    availability: schedule?.availability ?? [],
-    travelSchedules: member.user.travelSchedules.map((schedule) => {
-      return {
-        startDate: dayjs(schedule.startDate),
-        endDate: schedule.endDate ? dayjs(schedule.endDate) : undefined,
-        timeZone: schedule.timeZone,
-      };
-    }),
-  });
+  const dateRanges = resolved
+    ? buildDateRanges({
+        dateFrom,
+        dateTo,
+        timeZone,
+        availability: resolved.availability,
+        travelSchedules: member.user.travelSchedules.map((schedule) => {
+          return {
+            startDate: dayjs(schedule.startDate),
+            endDate: schedule.endDate ? dayjs(schedule.endDate) : undefined,
+            timeZone: schedule.timeZone,
+          };
+        }),
+      }).dateRanges
+    : ([] as DateRange[]);
 
   return {
     id: member.user.id,
@@ -147,6 +195,7 @@ async function buildMember(member: Member, dateFrom: Dayjs, dateTo: Dayjs) {
     role: member.role,
     defaultScheduleId: member.user.defaultScheduleId ?? -1,
     dateRanges,
+    availabilitySource: resolved?.source ?? "unrecorded",
   };
 }
 
