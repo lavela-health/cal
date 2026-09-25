@@ -246,9 +246,23 @@ BEGIN
   DO UPDATE SET "availability" = EXCLUDED."availability",
                 "timeZone"     = EXCLUDED."timeZone",
                 "userId"       = EXCLUDED."userId";
+
+EXCEPTION
+  WHEN OTHERS THEN
+    -- This runs inside the saving transaction's COMMIT, so an uncaught error here would
+    -- roll the provider's schedule save back. A missing version row is a far cheaper
+    -- failure than a provider unable to edit their availability. The implicit
+    -- subtransaction undoes this function's own partial writes, so what is left is a
+    -- clean gap rather than a half-closed version. Also swallows lock deadlocks.
+    RAISE WARNING 'capture_schedule_version failed for schedule %: % (%)',
+      p_schedule_id, SQLERRM, SQLSTATE;
 END;
 $$ LANGUAGE plpgsql;
 ```
+
+The `EXCEPTION` block is load-bearing and must not be removed as noise. Note it also means a broken
+capture fails *quietly* in Postgres logs — which is why the Task 1 integration tests are the real
+safety net, not production behaviour.
 
 - [ ] **Step 6: Append the trigger functions and triggers**
 

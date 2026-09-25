@@ -140,6 +140,13 @@ A hand-written migration adds one function and two triggers.
 3. Closes the open version: `UPDATE ScheduleVersion SET validTo = now() WHERE scheduleId = ?
    AND validTo IS NULL AND txId <> txid_current()`.
 4. `INSERT ... ON CONFLICT (scheduleId, txId) DO UPDATE`.
+5. Wraps all of the above in `EXCEPTION WHEN OTHERS THEN RAISE WARNING`. Because the trigger fires
+   inside the saving transaction's COMMIT, an uncaught error would roll back the provider's schedule
+   save. A missing version row is a far cheaper failure than a provider unable to edit their
+   availability on a page they reach constantly, so capture is best-effort by design. The implicit
+   subtransaction undoes the function's own partial writes, leaving a clean gap rather than a
+   half-closed version, and it absorbs advisory-lock deadlocks as well. The integration tests in §5,
+   not production behaviour, are what guarantee capture actually works.
 
 Triggers, both `DEFERRABLE INITIALLY DEFERRED`:
 
@@ -329,9 +336,14 @@ must return `unrecorded` with empty ranges rather than today's rows.
 
 - **Schema change.** `packages/prisma/schema.prisma` is on CLAUDE.md's "ask first" list. Confirm before
   running `yarn prisma migrate dev --create-only`.
-- **Deferred triggers and long transactions.** Firing at COMMIT means the snapshot query runs inside
+- **Deferred triggers run on the write path.** Firing at COMMIT means the snapshot query runs inside
   the caller's transaction. The read is a single indexed lookup over one schedule's rows, so cost is
-  negligible, but it is worth stating that this is on the write path.
+  negligible — but it also means an uncaught error would abort the provider's schedule save, which is
+  why step 5 of §3.2 makes capture best-effort. Blast radius of a bug in this feature is therefore a
+  gap in `ScheduleVersion`, never a modified or deleted row in `Schedule` or `Availability`: the
+  triggers only read those tables.
+- **Rollback is clean.** Dropping the three triggers and the table restores current behaviour exactly,
+  with nothing to unwind.
 - **`travelSchedules` are unversioned.** `buildMember` passes them to `buildDateRanges` alongside
   availability. Confirm they are unused for managed users rather than assuming it; if they are used,
   reconstruction is incomplete and that belongs in §6 of the integration doc.
