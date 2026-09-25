@@ -177,6 +177,83 @@ default schedule (`isDefault: true`), merges all-day overrides
 and writes the whole array back with `PATCH /v2/schedules/{id}`. `UnblockOutOfOffice`
 removes them the same way. The `ooo` module in API v2 is unused and has no controller.
 
+### Past availability is now recorded, not just live
+
+Until this branch, a provider's past availability was unrecoverable: `ScheduleService#update`
+(`packages/features/schedules/services/ScheduleService.ts:122-127`) does an unqualified
+`deleteMany` + `createMany` on every save from the `AvailabilitySettings` atom, and the form
+feeding it drops every date override before today
+(`packages/lib/schedules/transformers/for-atom.ts:39`). A provider merely opening their own
+availability page destroyed their own history. Deferred Postgres constraint triggers on
+`Availability` (INSERT/UPDATE/DELETE) and `Schedule` (INSERT/UPDATE) now snapshot into a new
+`ScheduleVersion` table at COMMIT, once the transaction's deletes and inserts have both
+landed; a `Schedule` DELETE instead closes the open version through a separate trigger rather
+than snapshotting one, so a deleted schedule's history ends there instead of gaining a final
+row (`packages/prisma/migrations/20260925151609_availability_history/migration.sql`). Because
+it sits at the database, not in `ScheduleService`, it catches every write path alike with no
+way to bypass it: the atom's tRPC path, `PATCH /v2/schedules`, the create/duplicate handlers,
+ops scripts, raw SQL.
+
+`viewer.availability.listTeam` — the procedure behind the fleet view at
+`{web_url}/availability?client={oAuthClientId}` (§9) — is the only reader. For each member it
+now returns `availabilitySource: "live" | "recorded" | "unrecorded"` alongside `dateRanges`
+(`resolveAvailability` / `buildMember`,
+`packages/trpc/server/routers/viewer/availability/team/listTeamAvailability.handler.ts:113-219`).
+`"unrecorded"` means **no record exists** for that date — it is not the same as an empty
+schedule, and Lavela must keep rendering it as a gap in the record, not as "no availability."
+A member with no `defaultScheduleId` is `"unrecorded"` on a past date and `"live"` on today
+or later: having no schedule is a fact about the present, but for a past date — an offboarded
+provider, a deleted schedule, a nulled `defaultScheduleId` — it is the same unknown.
+Capture starts at this migration's rollout: every date before it, including all of August
+2026 — the occupancy report that motivated this work — is `unrecorded` and unrecoverable. No
+backfill exists or is possible; the rows that would justify one were already overwritten
+before the trigger existed.
+
+What `"recorded"` reconstructs is *scheduled* availability — the weekly rules and overrides as
+they stood on that date — not *offered* availability. It does not subtract connected-calendar
+busy time (`useCalendarsBusyTimes`, §8) and does not apply `minimumBookingNotice`. An occupancy
+report built on this data overstates what a provider actually had open unless it says so.
+
+A range is classified once, from its first day, not per day within it — correct for the fleet
+view, which only ever requests a single day, but a multi-day range straddling the
+live/recorded boundary would report one source for the whole row.
+
+A member's **timezone** is only recovered as far as the snapshot carries it. `Schedule.timeZone`
+is versioned, but a snapshot whose `timeZone` is null — a schedule that never set one — falls
+back to the member's timezone *as it is today*
+(`packages/trpc/server/routers/viewer/availability/team/listTeamAvailability.handler.ts:187`),
+not as it was on the requested date. A provider who has since moved timezone therefore has that
+subset of their past reconstructed against the wrong offset, silently.
+
+`travelSchedules` are **not versioned** — only `Availability` and `Schedule.timeZone` are. This
+is currently inert for Lavela: nothing in `apps/api/v2`, the only surface it uses for managed
+users (§2), ever writes a `TravelSchedule` row — that only happens through the tRPC procedure
+`viewer.me.updateProfile`
+(`packages/trpc/server/routers/viewer/me/updateProfile.handler.ts:192`), which Lavela's
+managed-user flow never calls. But nothing in the schema or that handler gates it on
+`isPlatformManaged` either, so this is incidental, not enforced. If a managed user's session
+ever reached `me.updateProfile` directly — support tooling, impersonation, a future web login
+— reconstruction on the `"recorded"` path would silently use *today's* live travel schedule
+for a past date, because that field was never snapshotted.
+
+**Open question — account erasure.** `ScheduleVersion.scheduleId` and `.userId` are plain
+integers with no foreign key, so version rows survive both `prisma.schedule.delete` and
+`prisma.user.delete`. For a deleted *schedule* that is the entire point: history has to outlive
+the thing it describes. For a deleted *user* nobody has decided. Today, a provider's recorded
+availability persists indefinitely after their account is erased. Whether that is correct
+depends on an erasure requirement nobody has stated, and invariant 15 currently forbids
+deleting from `ScheduleVersion` at all — so if such a requirement exists, it needs a deliberate
+carve-out rather than an incidental cascade. Flagged, not resolved; no deletion behaviour was
+changed.
+
+Capture is best-effort by design, not guaranteed. `capture_schedule_version` runs inside the
+saving transaction's COMMIT, so it catches every error and logs a warning instead of
+propagating — an uncaught error there would roll back the provider's own schedule save, and a
+missing version row was judged the cheaper failure. The migration file documents two
+reconciliation queries in a trailing comment for exactly this gap: intervals where `validTo`
+precedes `validFrom`, and schedules left with more than one open version. Neither is wired to
+alerting; both are for ad-hoc use if a member's history looks wrong.
+
 ## 7. Tokens
 
 Managed-user access tokens live 60 minutes. Expiry timestamps arrive as **millisecond
@@ -420,6 +497,15 @@ Breaking any of these breaks Lavela without breaking a test in this repo.
     any two of them puts a false claim about a therapist's availability on a member's screen.
     None of this is visible from this repo's tests. The route must also keep grouping a user's
     event types into one answer rather than one entry per event type.
+15. Availability writes are versioned. Any path that writes `Availability` or
+    `Schedule.timeZone` — the atom's tRPC path, the REST `PATCH /v2/schedules`, the
+    create/duplicate handlers, ops scripts, raw SQL — is captured by the deferred
+    `ScheduleVersion` triggers. Nothing may bypass them, and no code may delete from
+    `ScheduleVersion`. And `viewer.availability.listTeam`'s three `availabilitySource` values
+    (`"live"`, `"recorded"`, `"unrecorded"`) must stay distinguishable — the same hazard as
+    invariant 14, one layer over: collapsing `"unrecorded"` into "no availability" puts a false
+    claim about a provider's past on an admin's screen, and unlike invariant 14's member-facing
+    case, the admin reading it has no way to tell a genuine answer from a gap in the record.
 
 ## 12. Deployment coupling
 

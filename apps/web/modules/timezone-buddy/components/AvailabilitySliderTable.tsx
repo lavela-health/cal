@@ -8,9 +8,11 @@ import type { MembershipRole } from "@calcom/prisma/enums";
 import { trpc } from "@calcom/trpc/react";
 import type { UserProfile } from "@calcom/types/UserProfile";
 import { UserAvatar } from "@calcom/ui/components/avatar";
+import { Badge } from "@calcom/ui/components/badge";
 import { Button } from "@calcom/ui/components/button";
 import { ButtonGroup } from "@calcom/ui/components/buttonGroup";
 import { EmptyScreen } from "@calcom/ui/components/empty-screen";
+import { DatePicker } from "@calcom/ui/components/form/datepicker";
 import { keepPreviousData } from "@tanstack/react-query";
 import type { ColumnDef } from "@tanstack/react-table";
 import { getCoreRowModel, getFilteredRowModel, useReactTable } from "@tanstack/react-table";
@@ -34,6 +36,7 @@ export interface SliderUser {
   role: MembershipRole;
   defaultScheduleId: number | null;
   dateRanges: DateRange[];
+  availabilitySource: "live" | "recorded" | "unrecorded";
   profile: UserProfile;
 }
 
@@ -57,6 +60,7 @@ function AvailabilitySliderTableContent({ oAuthClientId }: AvailabilitySliderTab
   const { t } = useLocale();
   const tableContainerRef = useRef<HTMLDivElement>(null);
   const [browsingDate, setBrowsingDate] = useState(dayjs());
+  const isPastDate = browsingDate.isBefore(dayjs(), "day");
   const { searchTerm } = useDataTable();
 
   const { data, isPending, fetchNextPage, isFetching } = trpc.viewer.availability.listTeam.useInfiniteQuery(
@@ -83,7 +87,8 @@ function AvailabilitySliderTableContent({ oAuthClientId }: AvailabilitySliderTab
   // not hold up the grid's first paint.
   const { data: nextSlots, isPending: isNextSlotsPending } = trpc.viewer.availability.nextSlots.useQuery(
     { oAuthClientId, userIds },
-    { enabled: userIds.length > 0, placeholderData: keepPreviousData }
+    // Past dates blank this column, so fetching for them is pure waste.
+    { enabled: userIds.length > 0 && !isPastDate, placeholderData: keepPreviousData }
   );
 
   const memorisedColumns = useMemo(() => {
@@ -123,11 +128,14 @@ function AvailabilitySliderTableContent({ oAuthClientId }: AvailabilitySliderTab
       },
       {
         id: "nextAvailable",
-        header: t("next_available"),
+        header: isPastDate ? "" : t("next_available"),
         enableHiding: false,
         enableSorting: false,
         size: 180,
         cell: ({ row }) => {
+          if (isPastDate) {
+            return <span className="text-subtle text-sm">&mdash;</span>;
+          }
           const slot = nextSlots?.[String(row.original.id)];
           if (isNextSlotsPending) {
             return <div className="bg-subtle h-4 w-24 animate-pulse rounded-md" />;
@@ -198,19 +206,39 @@ function AvailabilitySliderTableContent({ oAuthClientId }: AvailabilitySliderTab
                 />
               </ButtonGroup>
               <span>{browsingDate.format("LL")}</span>
+              <DatePicker
+                date={browsingDate.toDate()}
+                onDatesChange={(date) => setBrowsingDate(dayjs(date))}
+                minDate={null}
+                label={t("availability_jump_to_date")}
+                className="w-auto"
+              />
+              {isPastDate && (
+                <Badge variant="orange" title={t("availability_recorded_history_description")}>
+                  {t("availability_recorded_history")}
+                </Badge>
+              )}
             </div>
           );
         },
         cell: ({ row }) => {
-          const { timeZone, dateRanges } = row.original;
-          // return <pre>{JSON.stringify(dateRanges, null, 2)}</pre>;
+          const { timeZone, dateRanges, availabilitySource } = row.original;
+
+          if (availabilitySource === "unrecorded") {
+            return (
+              <span className="text-subtle text-sm" title={t("availability_no_recorded_history_description")}>
+                {t("availability_no_recorded_history")}
+              </span>
+            );
+          }
+
           return <TimeDial timezone={timeZone} dateRanges={dateRanges} />;
         },
       },
     ];
 
     return cols;
-  }, [browsingDate, t, nextSlots, isNextSlotsPending]);
+  }, [browsingDate, t, nextSlots, isNextSlotsPending, isPastDate]);
 
   const totalRowCount = data?.pages?.[0]?.meta?.totalRowCount ?? 0;
   const totalFetched = flatData.length;

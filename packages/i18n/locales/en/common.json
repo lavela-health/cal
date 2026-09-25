@@ -4777,7 +4777,12 @@
   "user_updated_successfully": "User updated successfully.",
   "error_updating_user": "There was an error updating this user.",
   "please_reschedule": "Please reschedule.",
-  "ADD_NEW_STRINGS_ABOVE_THIS_LINE_TO_PREVENT_MERGE_CONFLICTS": "↑↑↑↑↑↑↑↑↑↑↑↑↑ Add your new strings above here ↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑",
   "next_available": "Next available",
-  "no_upcoming_availability": "No upcoming availability"
+  "no_upcoming_availability": "No upcoming availability",
+  "availability_recorded_history": "Recorded history",
+  "availability_recorded_history_description": "Showing availability as recorded on this date, not a projection.",
+  "availability_no_recorded_history": "No recorded history",
+  "availability_no_recorded_history_description": "Availability was not being recorded on this date.",
+  "availability_jump_to_date": "Jump to date",
+  "ADD_NEW_STRINGS_ABOVE_THIS_LINE_TO_PREVENT_MERGE_CONFLICTS": "↑↑↑↑↑↑↑↑↑↑↑↑↑ Add your new strings above here ↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑"
 }
