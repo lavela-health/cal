@@ -3,6 +3,16 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 const uniqueEmail = () => `schedule-version-${Date.now()}-${Math.random().toString(36).slice(2)}@example.com`;
 
+// Lets two concurrent operations rendezvous before either is allowed to proceed, so a
+// concurrency test can force real overlap instead of hoping two promises race.
+const defer = <T = void>() => {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((res) => {
+    resolve = res;
+  });
+  return { promise, resolve };
+};
+
 describe("ScheduleVersion capture trigger", () => {
   let userId: number;
   let scheduleId: number;
@@ -22,24 +32,45 @@ describe("ScheduleVersion capture trigger", () => {
   });
 
   afterEach(async () => {
-    await prisma.scheduleVersion.deleteMany({ where: { userId } });
-    await prisma.availability.deleteMany({ where: { scheduleId } });
+    // Availability before Schedule before ScheduleVersion: deleting availability fires capture
+    // and inserts a fresh open version, and deleting the schedule is what closes it. Deleting
+    // ScheduleVersion rows before that leaves the version capture creates behind, orphaned,
+    // with nothing to reap it. Filtered by userId, not scheduleId, so it also covers schedules
+    // created ad hoc inside a test (e.g. a reassignment target).
+    await prisma.availability.deleteMany({ where: { userId } });
     await prisma.schedule.deleteMany({ where: { userId } });
+    await prisma.scheduleVersion.deleteMany({ where: { userId } });
     await prisma.user.deleteMany({ where: { id: userId } });
   });
 
-  const versions = () =>
+  const versionsFor = (id: number) =>
     prisma.scheduleVersion.findMany({
-      where: { scheduleId },
+      where: { scheduleId: id },
       orderBy: { validFrom: "asc" },
       select: { id: true, availability: true, timeZone: true, validFrom: true, validTo: true },
     });
+
+  const versions = () => versionsFor(scheduleId);
 
   const weekly = (days: number[], start: string, end: string) => ({
     days,
     startTime: new Date(`1970-01-01T${start}:00.000Z`),
     endTime: new Date(`1970-01-01T${end}:00.000Z`),
   });
+
+  // Pins the ordering guarantee capture_schedule_version depends on: clock_timestamp(), taken
+  // after the advisory lock, must never let a closed version's validTo land before its own
+  // validFrom, and at most one version may be open for a schedule at a time.
+  const assertNoInvertedOrDuplicateOpenVersions = (
+    rows: Array<{ validFrom: Date; validTo: Date | null }>
+  ) => {
+    for (const row of rows) {
+      if (row.validTo) {
+        expect(row.validTo.getTime()).toBeGreaterThanOrEqual(row.validFrom.getTime());
+      }
+    }
+    expect(rows.filter((row) => row.validTo === null).length).toBeLessThanOrEqual(1);
+  };
 
   it("records exactly one new version for an atom-shaped deleteMany + createMany", async () => {
     // Creating the schedule in beforeEach already records a baseline version holding [],
@@ -65,7 +96,7 @@ describe("ScheduleVersion capture trigger", () => {
       { days: [4], startTime: "10:00:00", endTime: "12:00:00", date: null },
     ]);
     expect(rows.at(-1)?.validTo).toBeNull();
-    expect(rows.filter((row) => row.validTo === null)).toHaveLength(1);
+    assertNoInvertedOrDuplicateOpenVersions(rows);
   });
 
   it("records a baseline version when a schedule is created empty", async () => {
@@ -76,7 +107,10 @@ describe("ScheduleVersion capture trigger", () => {
   });
 
   it("records a version when a schedule is emptied to nothing", async () => {
-    await prisma.availability.create({ data: { ...weekly([1], "09:00", "17:00"), scheduleId, userId } });
+    await prisma.availability.create({
+      data: { ...weekly([1], "09:00", "17:00"), scheduleId, userId },
+      select: { id: true },
+    });
     const before = await versions();
 
     await prisma.availability.deleteMany({ where: { scheduleId } });
@@ -86,10 +120,14 @@ describe("ScheduleVersion capture trigger", () => {
     expect(rows.at(-1)?.availability).toEqual([]);
     expect(rows.at(-1)?.validTo).toBeNull();
     expect(rows.at(-2)?.validTo).not.toBeNull();
+    assertNoInvertedOrDuplicateOpenVersions(rows);
   });
 
   it("does not record a version when only the name changes", async () => {
-    await prisma.availability.create({ data: { ...weekly([1], "09:00", "17:00"), scheduleId, userId } });
+    await prisma.availability.create({
+      data: { ...weekly([1], "09:00", "17:00"), scheduleId, userId },
+      select: { id: true },
+    });
     const before = await versions();
 
     await prisma.schedule.update({
@@ -138,6 +176,7 @@ describe("ScheduleVersion capture trigger", () => {
         scheduleId,
         userId,
       },
+      select: { id: true },
     });
     const withOverride = await versions();
     expect(withOverride.at(-1)?.availability).toEqual([
@@ -185,17 +224,74 @@ describe("ScheduleVersion capture trigger", () => {
     const rows = await versions();
     expect(rows.length).toBeGreaterThanOrEqual(3);
     expect(rows.at(-1)?.validTo).toBeNull();
-    expect(rows.filter((row) => row.validTo === null)).toHaveLength(1);
+    assertNoInvertedOrDuplicateOpenVersions(rows);
     for (let i = 0; i < rows.length - 1; i++) {
-      expect(rows[i].validTo).not.toBeNull();
-      expect(rows[i].validTo!.getTime()).toBeLessThanOrEqual(rows[i + 1].validFrom.getTime());
+      const validTo = rows[i].validTo;
+      expect(validTo).not.toBeNull();
+      if (!validTo) continue;
+      expect(validTo.getTime()).toBeLessThanOrEqual(rows[i + 1].validFrom.getTime());
     }
   });
 
-  // Review Focus 5.
+  it("closes the open version when a schedule is deleted", async () => {
+    await prisma.availability.create({
+      data: { ...weekly([1], "09:00", "17:00"), scheduleId, userId },
+      select: { id: true },
+    });
+
+    await prisma.schedule.delete({ where: { id: scheduleId } });
+
+    const rows = await versions();
+    expect(rows.every((row) => row.validTo !== null)).toBe(true);
+    assertNoInvertedOrDuplicateOpenVersions(rows);
+  });
+
+  it("captures both schedules when an availability row is reassigned between them", async () => {
+    const otherSchedule = await prisma.schedule.create({
+      data: { userId, name: "Other Hours", timeZone: "Europe/London" },
+      select: { id: true },
+    });
+
+    const availability = await prisma.availability.create({
+      data: { ...weekly([1], "09:00", "17:00"), scheduleId, userId },
+      select: { id: true },
+    });
+
+    const beforeOrigin = await versions();
+    const beforeOther = await versionsFor(otherSchedule.id);
+
+    await prisma.availability.update({
+      where: { id: availability.id },
+      data: { scheduleId: otherSchedule.id },
+      select: { id: true },
+    });
+
+    const afterOrigin = await versions();
+    const afterOther = await versionsFor(otherSchedule.id);
+
+    expect(afterOrigin).toHaveLength(beforeOrigin.length + 1);
+    expect(afterOrigin.at(-1)?.availability).toEqual([]);
+
+    expect(afterOther).toHaveLength(beforeOther.length + 1);
+    expect(afterOther.at(-1)?.availability).toEqual([
+      { days: [1], startTime: "09:00:00", endTime: "17:00:00", date: null },
+    ]);
+
+    assertNoInvertedOrDuplicateOpenVersions(afterOrigin);
+    assertNoInvertedOrDuplicateOpenVersions(afterOther);
+  });
+
   it("leaves exactly one open version when two transactions commit concurrently", async () => {
-    await Promise.all([
-      prisma.schedule.update({
+    // A plain Promise.all of two schedule.update calls does not prove the advisory lock in
+    // capture_schedule_version does anything: with sub-millisecond non-interactive writes it
+    // would pass even with the lock removed. This forces genuine overlap by holding both
+    // transactions open — writes issued, deferred triggers armed but not yet fired — until
+    // both are ready, so they contend for the advisory lock at COMMIT for real.
+    const readyA = defer();
+    const readyB = defer();
+
+    const txA = prisma.$transaction(async (tx) => {
+      await tx.schedule.update({
         where: { id: scheduleId },
         data: {
           availability: {
@@ -204,8 +300,13 @@ describe("ScheduleVersion capture trigger", () => {
           },
         },
         select: { id: true },
-      }),
-      prisma.schedule.update({
+      });
+      readyA.resolve();
+      await readyB.promise;
+    });
+
+    const txB = prisma.$transaction(async (tx) => {
+      await tx.schedule.update({
         where: { id: scheduleId },
         data: {
           availability: {
@@ -214,10 +315,52 @@ describe("ScheduleVersion capture trigger", () => {
           },
         },
         select: { id: true },
-      }),
-    ]);
+      });
+      readyB.resolve();
+      await readyA.promise;
+    });
 
-    const open = (await versions()).filter((row) => row.validTo === null);
-    expect(open).toHaveLength(1);
+    await Promise.all([txA, txB]);
+
+    const rows = await versions();
+    assertNoInvertedOrDuplicateOpenVersions(rows);
+    expect(rows.filter((row) => row.validTo === null)).toHaveLength(1);
+  });
+
+  it("never closes a version with a validTo before its own validFrom, when the transaction that began first commits last", async () => {
+    // This is the scenario Important-1 identified: capture_schedule_version stamped validTo
+    // and validFrom with CURRENT_TIMESTAMP, which is fixed at each transaction's own BEGIN, not
+    // at the moment its deferred trigger actually runs at COMMIT. txA begins first (an earlier
+    // BEGIN-time stamp) but is held open past txB's full commit, so when txA finally commits it
+    // closes the version txB just opened — using a stamp that predates txB's own validFrom.
+    // clock_timestamp(), taken after the advisory lock at the moment capture actually runs,
+    // fixes this; this test fails on CURRENT_TIMESTAMP and passes with the fix.
+    const insertedA = defer();
+    const canCommitA = defer();
+
+    const txA = prisma.$transaction(async (tx) => {
+      await tx.availability.create({
+        data: { ...weekly([1], "09:00", "17:00"), scheduleId, userId },
+        select: { id: true },
+      });
+      insertedA.resolve();
+      await canCommitA.promise;
+    });
+
+    await insertedA.promise;
+
+    // Starts after txA's BEGIN, but is a standalone write that commits (and captures) in full
+    // immediately, well before txA is released below.
+    await prisma.availability.create({
+      data: { ...weekly([2], "10:00", "18:00"), scheduleId, userId },
+      select: { id: true },
+    });
+
+    canCommitA.resolve();
+    await txA;
+
+    const rows = await versions();
+    assertNoInvertedOrDuplicateOpenVersions(rows);
+    expect(rows.filter((row) => row.validTo === null)).toHaveLength(1);
   });
 });
