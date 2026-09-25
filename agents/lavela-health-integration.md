@@ -198,9 +198,12 @@ ops scripts, raw SQL.
 `{web_url}/availability?client={oAuthClientId}` (§9) — is the only reader. For each member it
 now returns `availabilitySource: "live" | "recorded" | "unrecorded"` alongside `dateRanges`
 (`resolveAvailability` / `buildMember`,
-`packages/trpc/server/routers/viewer/availability/team/listTeamAvailability.handler.ts:113-208`).
+`packages/trpc/server/routers/viewer/availability/team/listTeamAvailability.handler.ts:113-219`).
 `"unrecorded"` means **no record exists** for that date — it is not the same as an empty
 schedule, and Lavela must keep rendering it as a gap in the record, not as "no availability."
+A member with no `defaultScheduleId` is `"unrecorded"` on a past date and `"live"` on today
+or later: having no schedule is a fact about the present, but for a past date — an offboarded
+provider, a deleted schedule, a nulled `defaultScheduleId` — it is the same unknown.
 Capture starts at this migration's rollout: every date before it, including all of August
 2026 — the occupancy report that motivated this work — is `unrecorded` and unrecoverable. No
 backfill exists or is possible; the rows that would justify one were already overwritten
@@ -215,6 +218,13 @@ A range is classified once, from its first day, not per day within it — correc
 view, which only ever requests a single day, but a multi-day range straddling the
 live/recorded boundary would report one source for the whole row.
 
+A member's **timezone** is only recovered as far as the snapshot carries it. `Schedule.timeZone`
+is versioned, but a snapshot whose `timeZone` is null — a schedule that never set one — falls
+back to the member's timezone *as it is today*
+(`packages/trpc/server/routers/viewer/availability/team/listTeamAvailability.handler.ts:187`),
+not as it was on the requested date. A provider who has since moved timezone therefore has that
+subset of their past reconstructed against the wrong offset, silently.
+
 `travelSchedules` are **not versioned** — only `Availability` and `Schedule.timeZone` are. This
 is currently inert for Lavela: nothing in `apps/api/v2`, the only surface it uses for managed
 users (§2), ever writes a `TravelSchedule` row — that only happens through the tRPC procedure
@@ -225,6 +235,16 @@ managed-user flow never calls. But nothing in the schema or that handler gates i
 ever reached `me.updateProfile` directly — support tooling, impersonation, a future web login
 — reconstruction on the `"recorded"` path would silently use *today's* live travel schedule
 for a past date, because that field was never snapshotted.
+
+**Open question — account erasure.** `ScheduleVersion.scheduleId` and `.userId` are plain
+integers with no foreign key, so version rows survive both `prisma.schedule.delete` and
+`prisma.user.delete`. For a deleted *schedule* that is the entire point: history has to outlive
+the thing it describes. For a deleted *user* nobody has decided. Today, a provider's recorded
+availability persists indefinitely after their account is erased. Whether that is correct
+depends on an erasure requirement nobody has stated, and invariant 15 currently forbids
+deleting from `ScheduleVersion` at all — so if such a requirement exists, it needs a deliberate
+carve-out rather than an incidental cascade. Flagged, not resolved; no deletion behaviour was
+changed.
 
 Capture is best-effort by design, not guaranteed. `capture_schedule_version` runs inside the
 saving transaction's COMMIT, so it catches every error and logs a warning instead of
