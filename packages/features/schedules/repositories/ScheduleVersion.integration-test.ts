@@ -193,6 +193,34 @@ describe("ScheduleVersion capture trigger", () => {
     expect(rows.at(-1)?.availability).toEqual([]);
   });
 
+  it("leaves weekly rules intact when only overrides are replaced", async () => {
+    await prisma.availability.create({
+      data: { ...weekly([1], "09:00", "17:00"), scheduleId, userId },
+      select: { id: true },
+    });
+
+    // The REST path deletes only the category in the payload, keyed on `date IS NULL` —
+    // unlike the atom, which wipes the schedule. Cal::BlockOutOfOffice depends on this.
+    await prisma.availability.deleteMany({ where: { scheduleId, NOT: { date: null } } });
+    await prisma.availability.create({
+      data: {
+        days: [],
+        date: new Date("2026-10-01T00:00:00.000Z"),
+        startTime: new Date("1970-01-01T13:00:00.000Z"),
+        endTime: new Date("1970-01-01T15:00:00.000Z"),
+        scheduleId,
+        userId,
+      },
+      select: { id: true },
+    });
+
+    const latest = (await versions()).at(-1);
+    expect(latest?.availability).toEqual([
+      { days: [1], startTime: "09:00:00", endTime: "17:00:00", date: null },
+      { days: [], startTime: "13:00:00", endTime: "15:00:00", date: "2026-10-01" },
+    ]);
+  });
+
   it("records a version when only the timezone changes", async () => {
     const before = await versions();
 
