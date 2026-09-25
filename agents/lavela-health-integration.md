@@ -184,14 +184,15 @@ Until this branch, a provider's past availability was unrecoverable: `ScheduleSe
 `deleteMany` + `createMany` on every save from the `AvailabilitySettings` atom, and the form
 feeding it drops every date override before today
 (`packages/lib/schedules/transformers/for-atom.ts:39`). A provider merely opening their own
-availability page destroyed their own history. A deferred Postgres constraint trigger on
-`Availability` (INSERT/UPDATE/DELETE) and `Schedule` (INSERT/UPDATE/DELETE) now snapshots
-into a new `ScheduleVersion` table at COMMIT, once the transaction's deletes and inserts have
-both landed
-(`packages/prisma/migrations/20260925151609_availability_history/migration.sql`). Because it
-sits at the database, not in `ScheduleService`, it catches every write path alike with no way
-to bypass it: the atom's tRPC path, `PATCH /v2/schedules`, the create/duplicate handlers, ops
-scripts, raw SQL.
+availability page destroyed their own history. Deferred Postgres constraint triggers on
+`Availability` (INSERT/UPDATE/DELETE) and `Schedule` (INSERT/UPDATE) now snapshot into a new
+`ScheduleVersion` table at COMMIT, once the transaction's deletes and inserts have both
+landed; a `Schedule` DELETE instead closes the open version through a separate trigger rather
+than snapshotting one, so a deleted schedule's history ends there instead of gaining a final
+row (`packages/prisma/migrations/20260925151609_availability_history/migration.sql`). Because
+it sits at the database, not in `ScheduleService`, it catches every write path alike with no
+way to bypass it: the atom's tRPC path, `PATCH /v2/schedules`, the create/duplicate handlers,
+ops scripts, raw SQL.
 
 `viewer.availability.listTeam` — the procedure behind the fleet view at
 `{web_url}/availability?client={oAuthClientId}` (§9) — is the only reader. For each member it
