@@ -127,6 +127,10 @@ A hand-written migration adds one function and two triggers.
 
 `capture_schedule_version(schedule_id int)`:
 
+0. Takes `pg_advisory_xact_lock(hashtext('ScheduleVersion'), schedule_id)`, serialising capture per
+   schedule. Without it, two transactions committing against the same schedule can each close the
+   version they can see and then each insert an open one, leaving two rows with `validTo IS NULL` and
+   an ambiguous reconstruction. The lock is held only for the tail of the committing transaction.
 1. Reads the schedule's **current** `Availability` rows plus `Schedule.timeZone` and `Schedule.userId`,
    aggregating with a deterministic `ORDER BY date NULLS FIRST, "startTime", "endTime", days` inside
    `json_agg`. The ordering is load-bearing, not cosmetic: `json_agg` is otherwise free to return rows
@@ -198,9 +202,26 @@ const resolved = isPast
   : null;
 ```
 
-falling back to the existing live `schedule.findUnique` for today and future dates, and also when no
-version covers the requested date. Resolving at `dateFrom` rather than `dateTo` gives a defensible
-answer when a provider changed their schedule partway through the day in question.
+falling back to the existing live `schedule.findUnique` for today and future dates. Resolving at
+`dateFrom` rather than `dateTo` gives a defensible answer when a provider changed their schedule
+partway through the day in question.
+
+**A past date with no covering version must not fall back to live rows.** The migration seeds version 1
+at rollout, so every date before rollout — including all of August — has no covering version. Rendering
+today's schedule there would reproduce exactly the silent lie this work removes. Instead the member is
+returned with empty `dateRanges` and the UI says so.
+
+Each member therefore carries an `availabilitySource` discriminator:
+
+| value | meaning |
+| --- | --- |
+| `live` | today or future; read from the live rows, as before |
+| `recorded` | a version covers this date; reconstructed from history |
+| `unrecorded` | past date predating capture; **no record exists** — not "no availability" |
+
+`unrecorded` and a `recorded` snapshot of `[]` are different facts and must stay distinguishable:
+Aretha Hampton genuinely having zero availability on a date is a real, recorded answer; August having
+no record at all is not.
 
 This is the only behavioural change in the handler, and it introduces no new N+1 — the handler already
 issues one schedule query per member.
@@ -211,7 +232,9 @@ issues one schedule query per member.
 
 - When `browsingDate` is in the past, blank the `nextAvailable` column. It is fed by a separate
   `nextSlots` query about the *future* and is meaningless beside a historical dial.
-- Show a marker that a past date is displaying recorded history rather than a projection.
+- Show a marker that a past date is displaying recorded history rather than a projection, driven by
+  `availabilitySource`. An `unrecorded` member shows "no recorded history" in place of an empty dial,
+  so a gap in the record never reads as a provider with no availability.
 - Add a date picker beside the chevrons. Stepping to August one day at a time is roughly 40 clicks.
 
 New strings go in `packages/i18n/locales/en/common.json`.
@@ -278,13 +301,16 @@ runs these in CI as `VITEST_MODE=integration yarn test`
 - A REST-shaped partial write (overrides only) records a version and leaves weekly rules intact.
 - `validTo` chains correctly across successive saves, with no gaps and no overlaps.
 - A `Schedule.timeZone` change alone records a version.
+- Two concurrent transactions saving the same schedule leave exactly **one** open version, pinning the
+  advisory lock in step 0 of §3.2.
 
 **`ScheduleVersionRepository` unit tests** — boundaries at exactly `validFrom`, exactly `validTo`, no
 version covering the date, and several versions in range.
 
 **`listTeamAvailability.handler.test.ts`** — extend the suite added in #5 with past-date cases: the
-schedule changed after the date asked for, an override that has elapsed and been deleted, and a
-timezone change between then and now.
+schedule changed after the date asked for, an override that has elapsed and been deleted, a timezone
+change between then and now, and — most importantly — a past date with **no** covering version, which
+must return `unrecorded` with empty ranges rather than today's rows.
 
 ## 6. Acceptance criteria
 
