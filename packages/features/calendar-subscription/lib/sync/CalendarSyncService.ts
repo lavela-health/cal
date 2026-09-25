@@ -10,13 +10,14 @@ import type { SelectedCalendar } from "@calcom/prisma/client";
 import { metrics } from "@sentry/nextjs";
 
 const log = logger.getSubLogger({ prefix: ["CalendarSyncService"] });
-// getICalUID stamps new bookings with "@${APP_NAME}", so renaming the app orphans every
-// booking created under the old name: handleEvents would stop recognising them and a
-// cancellation made in the host's own calendar would silently never reach us. Past names
-// therefore stay here. Remove one only when no live booking still carries it.
-const PREVIOUS_APP_NAMES = ["Lavela Cal"];
+// APP_NAME is load-bearing here, not decorative: getICalUID stamps new bookings with
+// "@${APP_NAME}" and that string is written into the external calendar event, where it
+// is immutable. Renaming the app therefore orphans every booking made under the old
+// value — handleEvents stops recognising them and a cancellation made in the host's own
+// calendar silently never reaches us. Any future rename must add the old value here and
+// keep it until no live booking carries it.
 const CAL_MANAGED_ICAL_UID_SUFFIXES: ReadonlySet<string> = new Set(
-  ["cal.com", "cal.diy", APP_NAME, ...PREVIOUS_APP_NAMES].map((suffix) => suffix.toLowerCase())
+  ["cal.com", "cal.diy", APP_NAME].map((suffix) => suffix.toLowerCase())
 );
 
 const isCalManagedICalUID = (iCalUID?: string | null): boolean => {

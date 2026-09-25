@@ -2,7 +2,7 @@
 
 import dayjs from "@calcom/dayjs";
 import {
-  APP_NAME,
+  COMPANY_NAME,
   RECORDING_DEFAULT_ICON,
   TRANSCRIPTION_STOPPED_ICON,
   WEBSITE_URL,
@@ -193,7 +193,7 @@ export default function JoinCall(props: PageProps) {
           <img
             className="fixed z-10 hidden h-5 sm:inline-block"
             src={`${WEBSITE_URL}/lavela-logo-wordmark-white.svg`}
-            alt={APP_NAME}
+            alt={COMPANY_NAME}
             style={{
               top: 47,
               left: 20,

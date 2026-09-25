@@ -1,4 +1,4 @@
-import { APP_NAME } from "@calcom/lib/constants";
+import { COMPANY_NAME } from "@calcom/lib/constants";
 import classNames from "@calcom/ui/classNames";
 
 export function Logo({
@@ -24,14 +24,14 @@ export function Logo({
             warm ink cold. The API resolves both to the same team logo when one is set. */}
         <img
           className={classNames(sizing, "dark:hidden")}
-          alt={APP_NAME}
-          title={APP_NAME}
+          alt={COMPANY_NAME}
+          title={COMPANY_NAME}
           src={`${src}?type=${lightType}`}
         />
         <img
           className={classNames(sizing, "hidden dark:inline")}
-          alt={APP_NAME}
-          title={APP_NAME}
+          alt={COMPANY_NAME}
+          title={COMPANY_NAME}
           src={`${src}?type=${lightType}-dark`}
         />
       </strong>

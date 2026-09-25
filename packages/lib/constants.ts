@@ -38,7 +38,10 @@ export const WEBSITE_URL = ensureProtocol(process.env.NEXT_PUBLIC_WEBSITE_URL) |
 // The fallbacks are Lavela's, not Cal's: these are all NEXT_PUBLIC_ vars inlined at
 // build time, so a build that loses one of them would otherwise quietly ship Cal
 // branding to production rather than failing visibly.
-export const APP_NAME = process.env.NEXT_PUBLIC_APP_NAME || "Lavela Health";
+// Not "Lavela Health": this feeds the iCalUID suffix (see CalendarSyncService), so the
+// fallback has to match what production builds with or a dropped build arg would start
+// minting bookings the calendar sync cannot recognise. Display copy uses COMPANY_NAME.
+export const APP_NAME = process.env.NEXT_PUBLIC_APP_NAME || "Lavela Cal";
 export const SUPPORT_MAIL_ADDRESS = process.env.NEXT_PUBLIC_SUPPORT_MAIL_ADDRESS || "hello@lavelahealth.com";
 export const COMPANY_NAME = process.env.NEXT_PUBLIC_COMPANY_NAME || "Lavela Health";
 export const SENDER_ID = process.env.NEXT_PUBLIC_SENDER_ID || "Lavela";
