@@ -1,3 +1,4 @@
+import logger from "@calcom/lib/logger";
 import type { PrismaClient } from "@calcom/prisma";
 
 export type ScheduleVersionAvailability = {
@@ -17,6 +18,32 @@ type StoredAvailability = {
   startTime: string;
   endTime: string;
   date: string | null;
+};
+
+const log = logger.getSubLogger({ prefix: ["ScheduleVersionRepository"] });
+
+// The trigger writes these, but nothing in the database constrains the JSON's shape, and a
+// bad row must not be trusted: a non-array throws inside the caller's Promise.all and 500s
+// the whole fleet view, and a malformed time string yields an Invalid Date that
+// buildDateRanges silently turns into zero ranges — rendered as a confident "recorded" empty
+// day, the conflation invariant 15 forbids.
+const WALL_CLOCK_TIME = /^\d{2}:\d{2}:\d{2}$/;
+const CALENDAR_DATE = /^\d{4}-\d{2}-\d{2}$/;
+
+const isStoredAvailability = (value: unknown): value is StoredAvailability => {
+  if (typeof value !== "object" || value === null) return false;
+
+  const { days, startTime, endTime, date } = value as Record<string, unknown>;
+
+  return (
+    Array.isArray(days) &&
+    days.every((day) => typeof day === "number") &&
+    typeof startTime === "string" &&
+    WALL_CLOCK_TIME.test(startTime) &&
+    typeof endTime === "string" &&
+    WALL_CLOCK_TIME.test(endTime) &&
+    (date === null || (typeof date === "string" && CALENDAR_DATE.test(date)))
+  );
 };
 
 // buildDateRanges reads wall-clock time off these via getUTCHours()/getUTCMinutes(), matching
@@ -48,9 +75,20 @@ export class ScheduleVersionRepository {
       return null;
     }
 
+    const stored = version.availability;
+
+    // An unreadable row means we cannot honestly say what was scheduled, and "we don't know"
+    // is what the caller resolves null to. Degrading one member to "unrecorded" beats both
+    // throwing (which takes the whole page down) and half-mapping (which asserts a record
+    // that was never readable).
+    if (!Array.isArray(stored) || !stored.every(isStoredAvailability)) {
+      log.warn("Discarding a malformed ScheduleVersion snapshot", { scheduleId, at });
+      return null;
+    }
+
     return {
       timeZone: version.timeZone,
-      availability: (version.availability as StoredAvailability[]).map(toAvailability),
+      availability: stored.map(toAvailability),
     };
   }
 }

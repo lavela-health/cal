@@ -84,6 +84,52 @@ describe("ScheduleVersionRepository.availabilityAsOf", () => {
     expect(override.startTime.getUTCHours()).toBe(13);
   });
 
+  // Nothing in the database constrains the JSONB shape, so a bad row has to fail safe: null
+  // resolves to "unrecorded" upstream, which is the honest answer for a row we cannot read.
+  it("returns null when the stored snapshot is not an array", async () => {
+    const { client } = clientReturning({ timeZone: "Europe/London", availability: { days: [1] } });
+    const repository = new ScheduleVersionRepository(client as never);
+
+    expect(await repository.availabilityAsOf(1, new Date("2026-08-14T00:00:00.000Z"))).toBeNull();
+  });
+
+  // A malformed time would otherwise map to an Invalid Date, which buildDateRanges silently
+  // turns into zero ranges — indistinguishable on screen from a recorded empty schedule.
+  it("returns null when a stored entry carries a malformed time", async () => {
+    const { client } = clientReturning({
+      timeZone: "Europe/London",
+      availability: [{ days: [1], startTime: "not-a-time", endTime: "17:00:00", date: null }],
+    });
+    const repository = new ScheduleVersionRepository(client as never);
+
+    expect(await repository.availabilityAsOf(1, new Date("2026-08-14T00:00:00.000Z"))).toBeNull();
+  });
+
+  it("returns null when a stored entry is missing a field entirely", async () => {
+    const { client } = clientReturning({
+      timeZone: "Europe/London",
+      availability: [{ days: [1], startTime: "09:00:00" }],
+    });
+    const repository = new ScheduleVersionRepository(client as never);
+
+    expect(await repository.availabilityAsOf(1, new Date("2026-08-14T00:00:00.000Z"))).toBeNull();
+  });
+
+  // One bad entry poisons the snapshot: returning the readable half would present a partial
+  // record as a complete one.
+  it("returns null when only one entry among several is malformed", async () => {
+    const { client } = clientReturning({
+      timeZone: "Europe/London",
+      availability: [
+        { days: [1], startTime: "09:00:00", endTime: "17:00:00", date: null },
+        { days: [2], startTime: "09:00:00", endTime: "17:00:00", date: "14/08/2026" },
+      ],
+    });
+    const repository = new ScheduleVersionRepository(client as never);
+
+    expect(await repository.availabilityAsOf(1, new Date("2026-08-14T00:00:00.000Z"))).toBeNull();
+  });
+
   it("returns an empty availability array for a recorded empty schedule", async () => {
     const { client } = clientReturning({ timeZone: "Europe/London", availability: [] });
     const repository = new ScheduleVersionRepository(client as never);
