@@ -72,6 +72,48 @@ describe("ScheduleVersion capture trigger", () => {
     expect(rows.filter((row) => row.validTo === null).length).toBeLessThanOrEqual(1);
   };
 
+  // Every other assertion in this file compares validFrom/validTo against each other, so a
+  // stamp written in the wrong timezone is invisible to all of them. This is the one that
+  // compares against an absolute instant observed from the JS side: the trigger stores a
+  // `timestamp without time zone` and Prisma reads it back as UTC, so anything but a UTC wall
+  // clock silently offsets every version by the server's UTC offset and makes resolution near
+  // a day boundary pick the wrong version.
+  const CLOCK_TOLERANCE_MS = 5_000;
+
+  it("stamps validFrom with the UTC instant the capture actually happened", async () => {
+    const before = Date.now();
+
+    await prisma.availability.create({
+      data: { ...weekly([1], "09:00", "17:00"), scheduleId, userId },
+      select: { id: true },
+    });
+
+    const after = Date.now();
+    const latest = (await versions()).at(-1);
+
+    expect(latest?.validFrom.getTime()).toBeGreaterThanOrEqual(before - CLOCK_TOLERANCE_MS);
+    expect(latest?.validFrom.getTime()).toBeLessThanOrEqual(after + CLOCK_TOLERANCE_MS);
+  });
+
+  // close_schedule_version stamps validTo from its own expression rather than the captured
+  // v_now, so it needs its own guard against the same timezone mistake.
+  it("stamps validTo with the UTC instant a schedule was deleted", async () => {
+    await prisma.availability.create({
+      data: { ...weekly([1], "09:00", "17:00"), scheduleId, userId },
+      select: { id: true },
+    });
+
+    const before = Date.now();
+    await prisma.schedule.delete({ where: { id: scheduleId } });
+    const after = Date.now();
+
+    const closed = (await versions()).at(-1);
+
+    expect(closed?.validTo).not.toBeNull();
+    expect(closed?.validTo?.getTime()).toBeGreaterThanOrEqual(before - CLOCK_TOLERANCE_MS);
+    expect(closed?.validTo?.getTime()).toBeLessThanOrEqual(after + CLOCK_TOLERANCE_MS);
+  });
+
   it("records exactly one new version for an atom-shaped deleteMany + createMany", async () => {
     // Creating the schedule in beforeEach already records a baseline version holding [],
     // because an empty schedule is a real state. Assert relative to that baseline.

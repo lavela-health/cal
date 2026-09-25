@@ -70,7 +70,14 @@ BEGIN
   -- clock_timestamp() taken right after acquiring the lock is monotonic in capture order,
   -- and using the same value for both the closed row's validTo and the new row's validFrom
   -- preserves the no-gap/no-overlap chain.
-  v_now := clock_timestamp();
+  --
+  -- AT TIME ZONE 'UTC' is load-bearing: clock_timestamp() is a timestamptz, and assigning one
+  -- into a `timestamp without time zone` converts through the session's TimeZone GUC, which is
+  -- whatever the server happens to be set to. Prisma reads the column back as UTC regardless,
+  -- so on any non-UTC server every stamp would be silently offset from the instants
+  -- availabilityAsOf() compares against, and resolution near a day boundary would pick the
+  -- wrong version.
+  v_now := (clock_timestamp() AT TIME ZONE 'UTC');
 
   SELECT s."userId", s."timeZone" INTO v_user_id, v_time_zone
   FROM "Schedule" s
@@ -156,8 +163,10 @@ $$ LANGUAGE plpgsql;
 CREATE OR REPLACE FUNCTION close_schedule_version()
 RETURNS TRIGGER AS $$
 BEGIN
+  -- AT TIME ZONE 'UTC' for the same reason as in capture_schedule_version: the column is
+  -- `timestamp without time zone` and Prisma reads it back as UTC.
   UPDATE "ScheduleVersion"
-     SET "validTo" = CURRENT_TIMESTAMP
+     SET "validTo" = (CURRENT_TIMESTAMP AT TIME ZONE 'UTC')
    WHERE "scheduleId" = OLD.id
      AND "validTo" IS NULL;
   RETURN NULL;
@@ -193,7 +202,8 @@ EXECUTE FUNCTION close_schedule_version();
 -- would mean holding one lock per schedule for the rest of this migration transaction, which risks
 -- exhausting the shared lock table on large installs.
 INSERT INTO "ScheduleVersion" ("scheduleId", "userId", "timeZone", "availability", "validFrom", "txId")
-SELECT s.id, s."userId", s."timeZone", schedule_availability_snapshot(s.id), CURRENT_TIMESTAMP, txid_current()
+SELECT s.id, s."userId", s."timeZone", schedule_availability_snapshot(s.id),
+       (CURRENT_TIMESTAMP AT TIME ZONE 'UTC'), txid_current()
 FROM "Schedule" s;
 
 -- Reconciliation: capture_schedule_version fails quietly by design (see its EXCEPTION block
