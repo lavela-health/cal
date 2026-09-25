@@ -250,6 +250,39 @@ describe("listTeamAvailabilityHandler — past dates", () => {
     expect(prismaMock.schedule.findUnique).toHaveBeenCalled();
   });
 
+  // "Today" must be the caller's today, not the server's. The process runs TZ=UTC, but a
+  // caller ahead of UTC has a local midnight that lands before UTC midnight for part of the
+  // UTC day — comparing the requested date against server-local midnight would misclassify a
+  // live, working schedule as unrecorded for exactly that caller, exactly then. That window
+  // (before 15:00 UTC for Asia/Tokyo, UTC+9) doesn't hold for the whole day, so the clock is
+  // pinned rather than left to wall-clock chance — a run outside that window would pass
+  // whether or not the bug were present, and prove nothing.
+  it("still reads live rows for today in a timezone ahead of UTC", async () => {
+    const tz = "Asia/Tokyo";
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-09-25T02:00:00.000Z"));
+
+    try {
+      const todayInTz = dayjs().tz(tz).startOf("day");
+
+      const result = await listTeamAvailabilityHandler({
+        ctx: { user: ctxUser() },
+        input: input({
+          startDate: todayInTz.toISOString(),
+          endDate: todayInTz.endOf("day").toISOString(),
+          loggedInUsersTz: tz,
+          oAuthClientId: CLIENT_ID,
+        }),
+      });
+
+      expect(result.rows[0].availabilitySource).toBe("live");
+      expect(prismaMock.scheduleVersion.findFirst).not.toHaveBeenCalled();
+      expect(prismaMock.schedule.findUnique).toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   // Review Focus 3 (added): the Task 2 unit test labelled "DST" never actually exercised DST
   // reconstruction, because its time mapping read neither date nor timezone. This is the seam
   // where a recorded timezone and a real past date meet, so pin it here: Europe/London sits at

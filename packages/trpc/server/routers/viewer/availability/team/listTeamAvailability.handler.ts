@@ -6,7 +6,6 @@ import type { ScheduleVersionAvailability } from "@calcom/features/schedules/rep
 import { ScheduleVersionRepository } from "@calcom/features/schedules/repositories/ScheduleVersionRepository";
 import { UserRepository } from "@calcom/features/users/repositories/UserRepository";
 import { prisma } from "@calcom/prisma";
-import type { Availability } from "@calcom/prisma/client";
 import { Prisma } from "@calcom/prisma/client";
 import { MembershipRole } from "@calcom/prisma/enums";
 import { TRPCError } from "@trpc/server";
@@ -106,14 +105,15 @@ type Member = Awaited<ReturnType<typeof getTeamMembers>>[number];
 type AvailabilitySource = "live" | "recorded" | "unrecorded";
 
 type ResolvedAvailability = {
-  availability: Availability[] | ScheduleVersionAvailability[];
+  availability: ScheduleVersionAvailability[];
   timeZone: string | null;
   source: AvailabilitySource;
 };
 
 async function resolveAvailability(
   defaultScheduleId: number,
-  dateFrom: Dayjs
+  dateFrom: Dayjs,
+  callerToday: Dayjs
 ): Promise<ResolvedAvailability | null> {
   // The caller pads dateFrom back by a day to catch timezone-shifted boundary slots in
   // buildDateRanges. That buffer would otherwise make "today" look like "yesterday" here and
@@ -121,7 +121,11 @@ async function resolveAvailability(
   // before deciding what "past" means and before querying a version "as of" it.
   const requestedDate = dateFrom.add(1, "day");
 
-  if (!requestedDate.isBefore(dayjs().startOf("day"))) {
+  // "Today" is the caller's today, not the server's: callerToday is midnight in
+  // loggedInUsersTz, computed once by the handler. Comparing against server-local midnight
+  // would misclassify a live, working schedule as "unrecorded" for any caller ahead of UTC,
+  // whose local today starts before UTC midnight.
+  if (!requestedDate.isBefore(callerToday)) {
     const schedule = await prisma.schedule.findUnique({
       where: { id: defaultScheduleId },
       select: { availability: true, timeZone: true },
@@ -147,7 +151,7 @@ async function resolveAvailability(
   return { availability: recorded.availability, timeZone: recorded.timeZone, source: "recorded" };
 }
 
-async function buildMember(member: Member, dateFrom: Dayjs, dateTo: Dayjs) {
+async function buildMember(member: Member, dateFrom: Dayjs, dateTo: Dayjs, callerToday: Dayjs) {
   if (!member.user.defaultScheduleId) {
     return {
       id: member.user.id,
@@ -164,7 +168,12 @@ async function buildMember(member: Member, dateFrom: Dayjs, dateTo: Dayjs) {
     };
   }
 
-  const resolved = await resolveAvailability(member.user.defaultScheduleId, dateFrom);
+  // The range is classified once, by its first day (dateFrom), not per day within it. The
+  // only consumer, AvailabilitySliderTable, always requests a single day, so this is correct
+  // for the fleet view today. A multi-day range that straddles the live/recorded boundary
+  // would report one source for the whole row — deliberately out of scope; per-day
+  // classification would mean segmenting dateRanges by day, a larger change than this ticket.
+  const resolved = await resolveAvailability(member.user.defaultScheduleId, dateFrom, callerToday);
   const timeZone = resolved?.timeZone || member.user.timeZone;
 
   const dateRanges = resolved
@@ -312,8 +321,11 @@ export const listTeamAvailabilityHandler = async ({ ctx, input }: GetOptions) =>
 
   const dateFrom = dayjs(input.startDate).tz(input.loggedInUsersTz).subtract(1, "day");
   const dateTo = dayjs(input.endDate).tz(input.loggedInUsersTz).add(1, "day");
+  // "Today" for the live/recorded decision is the caller's today, not the server's — compute
+  // it once here, in the same timezone as dateFrom/dateTo, rather than per member.
+  const callerToday = dayjs().tz(input.loggedInUsersTz).startOf("day");
 
-  const buildMembers = teamMembers?.map((member) => buildMember(member, dateFrom, dateTo));
+  const buildMembers = teamMembers?.map((member) => buildMember(member, dateFrom, dateTo, callerToday));
 
   const members = await Promise.all(buildMembers);
 
