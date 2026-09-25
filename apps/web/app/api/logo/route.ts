@@ -7,6 +7,8 @@ import {
   IS_SELF_HOSTED,
   LOGO,
   LOGO_ICON,
+  LOGO_ICON_WHITE,
+  LOGO_WHITE,
   MSTILE_ICON,
   WEBAPP_URL,
 } from "@calcom/lib/constants";
@@ -42,7 +44,9 @@ const SYSTEM_SUBDOMAINS = ["console", "app", "www"];
 
 type LogoType =
   | "logo"
+  | "logo-dark"
   | "icon"
+  | "icon-dark"
   | "favicon-16"
   | "favicon-32"
   | "apple-touch-icon"
@@ -62,8 +66,19 @@ const logoDefinitions: Record<LogoType, LogoTypeDefinition> = {
     fallback: `${WEBAPP_URL}${LOGO}`,
     source: "appLogo",
   },
+  // Dark-surface variants exist because inverting the brand wordmark in CSS shifts its
+  // warm ink (#23100b) to a cold blue-white. A team that uploaded its own logo gets that
+  // same logo back here — only the default differs.
+  "logo-dark": {
+    fallback: `${WEBAPP_URL}${LOGO_WHITE}`,
+    source: "appLogo",
+  },
   icon: {
     fallback: `${WEBAPP_URL}${LOGO_ICON}`,
+    source: "appIconLogo",
+  },
+  "icon-dark": {
+    fallback: `${WEBAPP_URL}${LOGO_ICON_WHITE}`,
     source: "appIconLogo",
   },
   "favicon-16": {

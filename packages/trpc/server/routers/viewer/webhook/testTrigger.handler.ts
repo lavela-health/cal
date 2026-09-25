@@ -1,6 +1,7 @@
 import { DEFAULT_WEBHOOK_VERSION } from "@calcom/features/webhooks/lib/interface/IWebhookRepository";
 import type { EventPayloadType } from "@calcom/features/webhooks/lib/sendPayload";
 import sendPayload from "@calcom/features/webhooks/lib/sendPayload";
+import { APP_NAME, HIDDEN_ORGANIZER_EMAIL } from "@calcom/lib/constants";
 import { validateUrlForSSRFSync } from "@calcom/lib/ssrfProtection";
 import { getTranslation } from "@calcom/i18n/server";
 
@@ -45,8 +46,8 @@ export const testTriggerHandler = async ({ ctx: _ctx, input }: TestTriggerOption
       },
     ],
     organizer: {
-      name: "Cal",
-      email: "no-reply@cal.com",
+      name: APP_NAME,
+      email: HIDDEN_ORGANIZER_EMAIL,
       timeZone: "Europe/London",
       language,
     },
