@@ -203,15 +203,24 @@ at no cost to this design.
 `buildMember` (`listTeamAvailability.handler.ts:103`) gains one branch:
 
 ```ts
-const isPast = dateFrom.isBefore(dayjs().startOf("day"));
+// dateFrom arrives padded back one day (handler :313) to catch timezone-shifted boundary
+// slots, so the requested day must be recovered before deciding past vs. live.
+const requestedDate = dateFrom.add(1, "day");
+const isPast = requestedDate.isBefore(dayjs().startOf("day"));
 const resolved = isPast
-  ? await scheduleVersionRepository.availabilityAsOf(member.user.defaultScheduleId, dateFrom.toDate())
+  ? await scheduleVersionRepository.availabilityAsOf(defaultScheduleId, requestedDate.toDate())
   : null;
 ```
 
-falling back to the existing live `schedule.findUnique` for today and future dates. Resolving at
-`dateFrom` rather than `dateTo` gives a defensible answer when a provider changed their schedule
-partway through the day in question.
+falling back to the existing live `schedule.findUnique` for today and future dates.
+
+**The padding is load-bearing and easy to get wrong.** `listTeamAvailability` computes
+`dateFrom = dayjs(input.startDate).tz(loggedInUsersTz).subtract(1, "day")`, so testing `dateFrom`
+directly classifies *today* as past and routes every live request through history. The decision and
+the version lookup both use the recovered `requestedDate`; `buildDateRanges` still receives the
+original padded `dateFrom`/`dateTo`, because the padding exists for its benefit. Resolving at the
+start of the requested day rather than its end gives a defensible answer when a provider changed
+their schedule partway through the day in question.
 
 **A past date with no covering version must not fall back to live rows.** The migration seeds version 1
 at rollout, so every date before rollout — including all of August — has no covering version. Rendering
