@@ -87,7 +87,8 @@ function AvailabilitySliderTableContent({ oAuthClientId }: AvailabilitySliderTab
   // not hold up the grid's first paint.
   const { data: nextSlots, isPending: isNextSlotsPending } = trpc.viewer.availability.nextSlots.useQuery(
     { oAuthClientId, userIds },
-    { enabled: userIds.length > 0, placeholderData: keepPreviousData }
+    // Past dates blank this column, so fetching for them is pure waste.
+    { enabled: userIds.length > 0 && !isPastDate, placeholderData: keepPreviousData }
   );
 
   const memorisedColumns = useMemo(() => {
