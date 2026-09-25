@@ -6,7 +6,7 @@ import posthog from "posthog-js";
 import { useEffect } from "react";
 
 import { useFlagMap } from "@calcom/features/flags/context/provider";
-import { APP_NAME } from "@calcom/lib/constants";
+import { APP_NAME, SENDER_NAME } from "@calcom/lib/constants";
 import { useLocale } from "@calcom/lib/hooks/useLocale";
 import { trpc } from "@calcom/trpc/react";
 import useEmailVerifyCheck from "@calcom/trpc/react/hooks/useEmailVerifyCheck";
@@ -28,7 +28,7 @@ const EMAIL_CLIENTS = [
   {
     name: "Yahoo",
     icon: "/email-clients/yahoo.svg",
-    href: "https://mail.yahoo.com/d/search?p=Cal.diy",
+    href: `https://mail.yahoo.com/d/search?p=${encodeURIComponent(SENDER_NAME)}`,
   },
   {
     name: "Proton",

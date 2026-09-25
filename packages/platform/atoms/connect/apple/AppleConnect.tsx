@@ -1,5 +1,6 @@
 "use client";
 
+import { APP_NAME } from "@calcom/lib/constants";
 import {
   Dialog,
   DialogContent,
@@ -125,7 +126,7 @@ export const AppleConnect: FC<Partial<Omit<OAuthConnectProps, "redir">>> = ({
           <DialogHeader>
             <DialogTitle>Connect to Apple Server</DialogTitle>
             <DialogDescription>
-              Generate an app specific password to use with Cal.diy at{" "}
+              Generate an app specific password to use with {APP_NAME} at{" "}
               <span className="font-bold">https://appleid.apple.com/account/manage</span>. Your credentials
               will be stored and encrypted.
             </DialogDescription>

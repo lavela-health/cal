@@ -1,3 +1,4 @@
+import { APP_NAME } from "@calcom/lib/constants";
 import type { PlatformOAuthClientDto } from "@calcom/platform-types";
 import { Button } from "@calcom/ui/components/button";
 import { EmptyScreen } from "@calcom/ui/components/empty-screen";
@@ -56,7 +57,7 @@ export const OAuthClientsList = ({ oauthClients, isDeleting, handleDelete }: OAu
       ) : (
         <EmptyScreen
           headline="Create your first OAuth client"
-          description="OAuth clients facilitate access to Cal.com on behalf of users"
+          description={`OAuth clients facilitate access to ${APP_NAME} on behalf of users`}
           Icon="plus"
           className=""
           buttonRaw={<NewOAuthClientButton redirectLink="/settings/platform/oauth-clients/create" />}

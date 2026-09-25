@@ -13,6 +13,7 @@ import ServerTrans from "@calcom/lib/components/ServerTrans";
 import {
   APP_NAME,
   CLOUDFLARE_SITE_ID,
+  COMPANY_NAME,
   IS_CALCOM,
   URL_PROTOCOL_REGEX,
   WEBAPP_URL,
@@ -518,15 +519,8 @@ export default function Signup({
                           setPremium={(value) => setPremiumUsername(value)}
                           addOnLeading={
                             orgSlug
-                              ? truncateDomain(
-                                  `${WEBAPP_URL.replace(
-                                    URL_PROTOCOL_REGEX,
-                                    ""
-                                  )}/`
-                                )
-                              : truncateDomain(
-                                  `${WEBSITE_URL.replace(URL_PROTOCOL_REGEX, "")}/`
-                                )
+                              ? truncateDomain(`${WEBAPP_URL.replace(URL_PROTOCOL_REGEX, "")}/`)
+                              : truncateDomain(`${WEBSITE_URL.replace(URL_PROTOCOL_REGEX, "")}/`)
                           }
                         />
                       ) : null}
@@ -786,7 +780,7 @@ export default function Signup({
                     <img
                       src="/product-cards/product-of-the-day.svg"
                       className="h-[34px] w-full dark:invert"
-                      alt="Cal.diy was Product of the Day at ProductHunt"
+                      alt="Product of the Day at ProductHunt"
                     />
                   </div>
                   <div>
@@ -794,7 +788,7 @@ export default function Signup({
                     <img
                       src="/product-cards/product-of-the-week.svg"
                       className="h-[34px] w-full dark:invert"
-                      alt="Cal.diy was Product of the Week at ProductHunt"
+                      alt="Product of the Week at ProductHunt"
                     />
                   </div>
                   <div>
@@ -802,7 +796,7 @@ export default function Signup({
                     <img
                       src="/product-cards/product-of-the-month.svg"
                       className="h-[34px] w-full dark:invert"
-                      alt="Cal.diy was Product of the Month at ProductHunt"
+                      alt="Product of the Month at ProductHunt"
                     />
                   </div>
                 </div>
@@ -835,12 +829,16 @@ export default function Signup({
               </>
             )}
             <div className="hidden rounded-tl-2xl rounded-br-none rounded-bl-2xl border border-default border-r-0 border-dashed bg-black/3 lg:block lg:py-[6px] lg:pl-[6px] dark:bg-white/5">
-              <img className="block dark:hidden" src="/mock-event-type-list.svg" alt="Cal.diy Booking Page" />
+              <img
+                className="block dark:hidden"
+                src="/mock-event-type-list.svg"
+                alt={`${COMPANY_NAME} booking page`}
+              />
               {/* eslint-disable @next/next/no-img-element */}
               <img
                 className="hidden dark:block"
                 src="/mock-event-type-list-dark.svg"
-                alt="Cal.diy Booking Page"
+                alt={`${COMPANY_NAME} booking page`}
               />
             </div>
             <div className="mt-8 mr-12 hidden h-full w-full grid-cols-3 gap-4 overflow-hidden lg:grid">

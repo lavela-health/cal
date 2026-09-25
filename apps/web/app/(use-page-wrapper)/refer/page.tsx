@@ -7,10 +7,10 @@ import Shell from "~/shell/Shell";
 
 import { DubReferralsPage } from "./DubReferralsPage";
 
+// Cal.com's affiliate-programme copy used to live here. There is no Lavela referral
+// programme to describe, and IS_DUB_REFERRALS_ENABLED is off, so this stays generic.
 export const metadata: Metadata = {
-  title: "Cal.diy referral program - Earn money by sharing your link",
-  description:
-    "Earn 20% recurring commissions for a full year by referring others to Cal.diy, while giving your referrals 20% off for 12 months. Share your link and start earning today!",
+  title: "Referral program",
 };
 
 // Export the appropriate component based on the feature flag

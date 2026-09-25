@@ -88,10 +88,7 @@ export const DailyVideoDownloadRecordingEmail = (
       </div>
 
       <p style={{ fontWeight: 500, lineHeight: "20px", marginTop: "8px" }}>
-        {props.language("link_valid_for_12_hrs_description")}{" "}
-        <a href="https://cal.com/docs/enterprise-features/teams/cal-video-recordings">
-          {props.language("here")}
-        </a>
+        {props.language("link_valid_for_12_hrs_description")}
       </p>
 
       <p style={{ fontWeight: 400, lineHeight: "24px", marginTop: "32px", marginBottom: "8px" }}>
