@@ -233,6 +233,41 @@ describe("listTeamAvailabilityHandler — past dates", () => {
     expect(result.rows[0].timeZone).toBe("America/New_York");
   });
 
+  // A member with no default schedule tells us nothing about a past date — offboarding, a
+  // deleted schedule and a nulled defaultScheduleId all land here. Reporting "live" would put
+  // an empty row under the "Recorded history" badge, asserting a record that never existed.
+  it("reports unrecorded for a member with no schedule on a past date", async () => {
+    prismaMock.membership.findMany.mockResolvedValue([
+      { ...member, user: { ...member.user, defaultScheduleId: null } },
+    ]);
+
+    const result = await listTeamAvailabilityHandler({
+      ctx: { user: ctxUser() },
+      input: input({ ...PAST, oAuthClientId: CLIENT_ID }),
+    });
+
+    expect(result.rows[0].availabilitySource).toBe("unrecorded");
+    expect(result.rows[0].dateRanges).toEqual([]);
+  });
+
+  it("still reports live for a member with no schedule today", async () => {
+    prismaMock.membership.findMany.mockResolvedValue([
+      { ...member, user: { ...member.user, defaultScheduleId: null } },
+    ]);
+    const today = dayjs().startOf("day");
+
+    const result = await listTeamAvailabilityHandler({
+      ctx: { user: ctxUser() },
+      input: input({
+        startDate: today.toISOString(),
+        endDate: today.endOf("day").toISOString(),
+        oAuthClientId: CLIENT_ID,
+      }),
+    });
+
+    expect(result.rows[0].availabilitySource).toBe("live");
+  });
+
   it("still reads live rows for today", async () => {
     const today = dayjs().startOf("day");
 
@@ -285,9 +320,13 @@ describe("listTeamAvailabilityHandler — past dates", () => {
 
   // Review Focus 3 (added): the Task 2 unit test labelled "DST" never actually exercised DST
   // reconstruction, because its time mapping read neither date nor timezone. This is the seam
-  // where a recorded timezone and a real past date meet, so pin it here: Europe/London sits at
-  // UTC+1 (BST) in August and UTC+0 (GMT) in December, and reconstruction must apply whichever
-  // offset was in effect on the requested date, not today's.
+  // where a recorded timezone and a real past date meet: Europe/London sits at UTC+1 (BST) in
+  // August and UTC+0 (GMT) in December, and reconstruction must apply whichever offset was in
+  // effect on the requested date, not today's.
+  //
+  // The clock is pinned past both dates rather than left at the real one: the December case
+  // is otherwise in the future, which routes it down the *live* branch and proves nothing
+  // about recorded reconstruction — the very failure this case exists to catch.
   it.each([
     {
       label: "BST offset in August",
@@ -309,21 +348,33 @@ describe("listTeamAvailabilityHandler — past dates", () => {
     expectedStart,
     expectedEnd,
   }) => {
-    prismaMock.scheduleVersion.findFirst.mockResolvedValue({
-      timeZone: "Europe/London",
-      availability: [{ days: [5], startTime: "09:00:00", endTime: "17:00:00", date: null }],
-    });
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2027-02-01T12:00:00.000Z"));
 
-    const result = await listTeamAvailabilityHandler({
-      ctx: { user: ctxUser() },
-      input: input({ startDate, endDate, oAuthClientId: CLIENT_ID }),
-    });
+    try {
+      prismaMock.scheduleVersion.findFirst.mockResolvedValue({
+        timeZone: "Europe/London",
+        availability: [{ days: [5], startTime: "09:00:00", endTime: "17:00:00", date: null }],
+      });
 
-    const requestedDay = startDate.slice(0, 10);
-    const range = result.rows[0].dateRanges.find((r) => dayjs(r.start).format("YYYY-MM-DD") === requestedDay);
+      const result = await listTeamAvailabilityHandler({
+        ctx: { user: ctxUser() },
+        input: input({ startDate, endDate, oAuthClientId: CLIENT_ID }),
+      });
 
-    expect(range).toBeDefined();
-    expect(dayjs(range?.start).toISOString()).toBe(expectedStart);
-    expect(dayjs(range?.end).toISOString()).toBe(expectedEnd);
+      expect(result.rows[0].availabilitySource).toBe("recorded");
+      expect(prismaMock.schedule.findUnique).not.toHaveBeenCalled();
+
+      const requestedDay = startDate.slice(0, 10);
+      const range = result.rows[0].dateRanges.find(
+        (r) => dayjs(r.start).format("YYYY-MM-DD") === requestedDay
+      );
+
+      expect(range).toBeDefined();
+      expect(dayjs(range?.start).toISOString()).toBe(expectedStart);
+      expect(dayjs(range?.end).toISOString()).toBe(expectedEnd);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

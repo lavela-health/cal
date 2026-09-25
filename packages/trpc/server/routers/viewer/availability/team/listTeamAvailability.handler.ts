@@ -110,22 +110,26 @@ type ResolvedAvailability = {
   source: AvailabilitySource;
 };
 
+// The caller pads dateFrom back by a day to catch timezone-shifted boundary slots in
+// buildDateRanges. That buffer would otherwise make "today" look like "yesterday" and wrongly
+// route it through the recorded-history path, so recover the actual requested day before
+// deciding what "past" means and before querying a version "as of" it.
+const requestedDayOf = (dateFrom: Dayjs) => dateFrom.add(1, "day");
+
+// "Today" is the caller's today, not the server's: callerToday is midnight in
+// loggedInUsersTz, computed once by the handler. Comparing against server-local midnight
+// would misclassify a live, working schedule as "unrecorded" for any caller ahead of UTC,
+// whose local today starts before UTC midnight.
+const isPastRequest = (dateFrom: Dayjs, callerToday: Dayjs) => requestedDayOf(dateFrom).isBefore(callerToday);
+
 async function resolveAvailability(
   defaultScheduleId: number,
   dateFrom: Dayjs,
   callerToday: Dayjs
 ): Promise<ResolvedAvailability | null> {
-  // The caller pads dateFrom back by a day to catch timezone-shifted boundary slots in
-  // buildDateRanges. That buffer would otherwise make "today" look like "yesterday" here and
-  // wrongly route it through the recorded-history path, so recover the actual requested day
-  // before deciding what "past" means and before querying a version "as of" it.
-  const requestedDate = dateFrom.add(1, "day");
+  const requestedDate = requestedDayOf(dateFrom);
 
-  // "Today" is the caller's today, not the server's: callerToday is midnight in
-  // loggedInUsersTz, computed once by the handler. Comparing against server-local midnight
-  // would misclassify a live, working schedule as "unrecorded" for any caller ahead of UTC,
-  // whose local today starts before UTC midnight.
-  if (!requestedDate.isBefore(callerToday)) {
+  if (!isPastRequest(dateFrom, callerToday)) {
     const schedule = await prisma.schedule.findUnique({
       where: { id: defaultScheduleId },
       select: { availability: true, timeZone: true },
@@ -163,8 +167,13 @@ async function buildMember(member: Member, dateFrom: Dayjs, dateTo: Dayjs, calle
       role: member.role,
       defaultScheduleId: -1,
       dateRanges: [] as DateRange[],
-      // No schedule is a present-tense fact, not a gap in history.
-      availabilitySource: "live" as AvailabilitySource,
+      // Having no schedule is a present-tense fact about today, but it says nothing about a
+      // past date: an offboarded provider, a deleted schedule and a nulled defaultScheduleId
+      // all land here, and calling that "live" renders an empty row under "Recorded history",
+      // asserting a record we never captured (invariant 15).
+      availabilitySource: (isPastRequest(dateFrom, callerToday)
+        ? "unrecorded"
+        : "live") as AvailabilitySource,
     };
   }
 
