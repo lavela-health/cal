@@ -975,6 +975,27 @@ model Availability {
   @@index([scheduleId])
 }
 
+model ScheduleVersion {
+  id         Int @id @default(autoincrement())
+  // Soft references, deliberately without foreign keys: cascade-deleting history when a
+  // schedule is deleted is the exact data loss this table exists to prevent. Mirrors the
+  // AuditActor pattern documented at schema.prisma:2451.
+  scheduleId Int
+  userId     Int
+
+  timeZone     String?
+  availability Json
+  validFrom    DateTime  @default(now())
+  validTo      DateTime?
+  // txid_current() of the writing transaction, so the deferred trigger can collapse its own
+  // repeated per-row firings into a single version.
+  txId         BigInt
+
+  @@unique([scheduleId, txId])
+  @@index([scheduleId, validFrom])
+  @@index([userId, validFrom])
+}
+
 model SelectedCalendar {
   id              String      @id @default(uuid())
   user            User        @relation(fields: [userId], references: [id], onDelete: Cascade)
