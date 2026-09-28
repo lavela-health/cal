@@ -80,6 +80,11 @@ export const createTimezoneBuddyStore = (initProps?: Partial<TimezoneBuddyProps>
       if (container) {
         const containerRect = container.getBoundingClientRect();
         const timeDials = container.querySelectorAll("[data-time-dial]>div");
+        // A grid can legitimately render no time dials at all - every member "unrecorded" on a
+        // pre-capture date does exactly that - and the arithmetic below would then reduce to
+        // `undefined - undefined`, writing NaN into height/y/x and onto the overlay's style.
+        // Keeping the previous dimensions is harmless: the overlay is hidden until hover.
+        if (timeDials.length === 0) return;
         const height =
           timeDials[timeDials.length - 1]?.getBoundingClientRect().bottom -
           timeDials[0]?.getBoundingClientRect().top;
