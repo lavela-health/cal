@@ -57,6 +57,8 @@ DECLARE
   v_current_tz TEXT;
   v_txid       BIGINT := txid_current();
   v_now        TIMESTAMP;
+  v_current_txid BIGINT;
+  v_has_open   BOOLEAN;
 BEGIN
   -- Serialise capture per schedule. Without this, two transactions committing against the
   -- same schedule each close the version they can see and each insert an open one, leaving
@@ -89,20 +91,43 @@ BEGIN
     RETURN;
   END IF;
 
-  v_snapshot := schedule_availability_snapshot(p_schedule_id);
-
-  SELECT sv.availability, sv."timeZone" INTO v_current, v_current_tz
+  -- Read the open version before building the snapshot, so a repeat firing can be answered
+  -- from this indexed lookup alone. This ordering is what keeps capture linear: the trigger is
+  -- FOR EACH ROW (CONSTRAINT triggers cannot be anything else), so the atom's deleteMany +
+  -- createMany fires this function once per deleted row and once per inserted row, and
+  -- rebuilding the full snapshot on each of those firings made a save cost O(n^2) in the
+  -- schedule's availability rows -- measured at ~1s inside COMMIT for a 400-row schedule
+  -- against ~70ms for 100 rows, while holding the advisory lock above.
+  SELECT sv.availability, sv."timeZone", sv."txId" INTO v_current, v_current_tz, v_current_txid
   FROM "ScheduleVersion" sv
   WHERE sv."scheduleId" = p_schedule_id
     AND sv."validTo" IS NULL
   ORDER BY sv."validFrom" DESC
   LIMIT 1;
+  v_has_open := FOUND;
+
+  -- This transaction has already settled this schedule, either by inserting the version below
+  -- or by confirming the open one still matches. Every deferred firing sees the same final
+  -- state -- the premise this whole design rests on -- so there is nothing left to decide.
+  IF v_has_open AND v_current_txid = v_txid THEN
+    RETURN;
+  END IF;
+
+  v_snapshot := schedule_availability_snapshot(p_schedule_id);
 
   -- Nothing changed. A name-only save, or a second firing of this same trigger, must not
   -- manufacture a version.
-  IF FOUND
+  IF v_has_open
      AND v_current = v_snapshot
      AND v_current_tz IS NOT DISTINCT FROM v_time_zone THEN
+    -- Stamp the surviving version with this transaction so the remaining firings take the
+    -- early return above instead of rebuilding the snapshot. Recording which transaction last
+    -- confirmed a version is what txId is for -- collapsing this trigger's repeated per-row
+    -- firings into one decision -- and nothing outside this function reads the column.
+    UPDATE "ScheduleVersion"
+       SET "txId" = v_txid
+     WHERE "scheduleId" = p_schedule_id
+       AND "validTo" IS NULL;
     RETURN;
   END IF;
 
@@ -162,11 +187,30 @@ $$ LANGUAGE plpgsql;
 -- forever and reads as "still in effect" for every future date.
 CREATE OR REPLACE FUNCTION close_schedule_version()
 RETURNS TRIGGER AS $$
+DECLARE
+  v_now TIMESTAMP;
 BEGIN
-  -- AT TIME ZONE 'UTC' for the same reason as in capture_schedule_version: the column is
+  -- The same per-schedule lock capture_schedule_version takes, and for a related reason.
+  -- Without it, a capture committing concurrently against this schedule can close the old open
+  -- version and insert a new one while this UPDATE is blocked on the old row; when it unblocks,
+  -- READ COMMITTED re-checks only the row it already found, not the one inserted since, so the
+  -- new open version survives the delete and reads as "still in effect" for every future date.
+  PERFORM pg_advisory_xact_lock(hashtext('ScheduleVersion'), OLD.id);
+
+  -- clock_timestamp(), not CURRENT_TIMESTAMP, for exactly the reason spelled out in
+  -- capture_schedule_version: CURRENT_TIMESTAMP is fixed at transaction start, not at the
+  -- moment this deferred trigger runs at COMMIT. A transaction that began before a concurrent
+  -- capture but commits after it would otherwise close that capture's version with a stamp
+  -- predating its own validFrom, and availabilityAsOf() can never select an interval whose
+  -- validTo precedes its validFrom -- the schedule's final recorded state would silently read
+  -- as unrecorded. Taking the stamp after the lock keeps it monotonic in capture order.
+  --
+  -- AT TIME ZONE 'UTC' is load-bearing for the same reason as well: the column is
   -- `timestamp without time zone` and Prisma reads it back as UTC.
+  v_now := (clock_timestamp() AT TIME ZONE 'UTC');
+
   UPDATE "ScheduleVersion"
-     SET "validTo" = (CURRENT_TIMESTAMP AT TIME ZONE 'UTC')
+     SET "validTo" = v_now
    WHERE "scheduleId" = OLD.id
      AND "validTo" IS NULL;
   RETURN NULL;
@@ -210,8 +254,10 @@ FROM "Schedule" s;
 -- above), trading a missing version row for never blocking a provider's schedule save. These two
 -- queries are the signals that reveal a silent gap, for ad-hoc use, not automated alerting:
 --
---   -- A version closed before it opened - should be unreachable now that capture uses
---   -- clock_timestamp() instead of CURRENT_TIMESTAMP; a hit here means the fix regressed.
+--   -- A version closed before it opened - should be unreachable now that both writers of
+--   -- validTo (capture_schedule_version and close_schedule_version) stamp with
+--   -- clock_timestamp() under the per-schedule advisory lock rather than CURRENT_TIMESTAMP;
+--   -- a hit here means one of the two regressed.
 --   SELECT * FROM "ScheduleVersion" WHERE "validTo" IS NOT NULL AND "validTo" < "validFrom";
 --
 --   -- More than one open version for a schedule - a capture failed to close its predecessor.

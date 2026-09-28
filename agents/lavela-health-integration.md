@@ -252,7 +252,21 @@ propagating — an uncaught error there would roll back the provider's own sched
 missing version row was judged the cheaper failure. The migration file documents two
 reconciliation queries in a trailing comment for exactly this gap: intervals where `validTo`
 precedes `validFrom`, and schedules left with more than one open version. Neither is wired to
-alerting; both are for ad-hoc use if a member's history looks wrong.
+alerting; both are for ad-hoc use if a member's history looks wrong. Both queries are expected
+to stay empty: every writer of `validTo` — `capture_schedule_version` and, on a `Schedule`
+DELETE, `close_schedule_version` — stamps with `clock_timestamp()` while holding the same
+per-schedule advisory lock, which is what keeps the chain ordered and leaves at most one open
+version. A row in either result means one of those two regressed.
+
+The triggers are `FOR EACH ROW` (a `CONSTRAINT` trigger cannot be anything else), so a single
+save fires capture once per availability row deleted and once per row inserted. Capture settles
+each schedule once per transaction and the remaining firings return early, keyed on the `txId`
+column: without that, rebuilding the snapshot per firing makes a save cost O(n²) in the
+schedule's availability rows — around 1s inside COMMIT for a 400-row schedule, against ~70ms at
+100 rows, all of it under the advisory lock that serialises other saves for the same schedule.
+Any marker used for that collapsing has to be scoped to the transaction and nothing wider: a
+marker that outlives its transaction silently stops the schedule from ever capturing again on
+that connection, which is data loss shaped exactly like the bug this table exists to prevent.
 
 ## 7. Tokens
 

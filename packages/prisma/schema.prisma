@@ -987,8 +987,8 @@ model ScheduleVersion {
   availability Json
   validFrom    DateTime  @default(now())
   validTo      DateTime?
-  // txid_current() of the writing transaction, so the deferred trigger can collapse its own
-  // repeated per-row firings into a single version.
+  // txid_current() of the transaction that last wrote or re-confirmed this version, so the
+  // deferred trigger can collapse its own repeated per-row firings into a single decision.
   txId         BigInt
 
   @@unique([scheduleId, txId])

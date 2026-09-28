@@ -316,6 +316,80 @@ describe("ScheduleVersion capture trigger", () => {
     assertNoInvertedOrDuplicateOpenVersions(rows);
   });
 
+  it("never closes a version with a validTo before its own validFrom when the deleting transaction began first and commits last", async () => {
+    // The delete-path twin of the test above. close_schedule_version is the other writer of
+    // validTo, and it originally kept CURRENT_TIMESTAMP after capture_schedule_version moved to
+    // clock_timestamp(), so the same interleaving produced an interval availabilityAsOf() can
+    // never select -- validFrom <= at AND validTo > at is unsatisfiable when validTo precedes
+    // validFrom -- silently reporting a schedule's final recorded state as unrecorded.
+    await prisma.availability.create({
+      data: { ...weekly([1], "09:00", "17:00"), scheduleId, userId },
+      select: { id: true },
+    });
+
+    const deleteStarted = defer();
+    const canCommitDelete = defer();
+
+    const deletingTx = prisma.$transaction(async (tx) => {
+      // Fixes this transaction's CURRENT_TIMESTAMP well before the capture below commits.
+      await tx.$queryRaw`SELECT 1`;
+      deleteStarted.resolve();
+      await canCommitDelete.promise;
+      await tx.schedule.delete({ where: { id: scheduleId } });
+    });
+
+    await deleteStarted.promise;
+
+    // Commits in full, opening a version stamped with a clock_timestamp() later than the
+    // deleting transaction's start.
+    await prisma.availability.create({
+      data: { ...weekly([2], "10:00", "18:00"), scheduleId, userId },
+      select: { id: true },
+    });
+
+    canCommitDelete.resolve();
+    await deletingTx;
+
+    const rows = await versions();
+    assertNoInvertedOrDuplicateOpenVersions(rows);
+    // The delete must close the history, not leave a version reading as still in effect.
+    expect(rows.every((row) => row.validTo !== null)).toBe(true);
+  });
+
+  it("keeps capturing after a save that changed nothing", async () => {
+    // capture_schedule_version dedupes its repeated per-row firings within a transaction so a
+    // save costs one snapshot rather than one per availability row. A marker that outlives its
+    // transaction turns that optimisation into silent data loss: the schedule captures once and
+    // never again on that connection. The no-change path is the one that has to stamp its own
+    // marker without inserting a row, so it is the one most likely to get this wrong -- and
+    // because Prisma reuses a connection, the damage only shows up across transactions.
+    await prisma.availability.create({
+      data: { ...weekly([1], "09:00", "17:00"), scheduleId, userId },
+      select: { id: true },
+    });
+    const afterFirst = await versions();
+
+    // Rewrites the identical row set: no version may be manufactured.
+    await prisma.$transaction(async (tx) => {
+      await tx.availability.deleteMany({ where: { scheduleId } });
+      await tx.availability.createMany({ data: [{ ...weekly([1], "09:00", "17:00"), scheduleId, userId }] });
+    });
+    expect(await versions()).toHaveLength(afterFirst.length);
+
+    // A genuine change after the no-op must still be recorded.
+    await prisma.$transaction(async (tx) => {
+      await tx.availability.deleteMany({ where: { scheduleId } });
+      await tx.availability.createMany({ data: [{ ...weekly([3], "11:00", "19:00"), scheduleId, userId }] });
+    });
+
+    const rows = await versions();
+    expect(rows).toHaveLength(afterFirst.length + 1);
+    expect(rows.at(-1)?.availability).toEqual([
+      { days: [3], startTime: "11:00:00", endTime: "19:00:00", date: null },
+    ]);
+    assertNoInvertedOrDuplicateOpenVersions(rows);
+  });
+
   it("captures both schedules when an availability row is reassigned between them", async () => {
     const otherSchedule = await prisma.schedule.create({
       data: { userId, name: "Other Hours", timeZone: "Europe/London" },
