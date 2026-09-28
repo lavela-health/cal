@@ -83,6 +83,17 @@ function AvailabilitySliderTableContent({ oAuthClientId }: AvailabilitySliderTab
 
   const userIds = useMemo(() => flatData.map((user) => user.id), [flatData]);
 
+  // The badge and the blanked "next available" column describe the rows on screen, so they are
+  // derived from those rows rather than from browsingDate. keepPreviousData holds the previous
+  // date's rows through the refetch, and isPending stays false throughout, so deriving them
+  // from the picked date instead would label live rows as recorded history until the query
+  // resolves - and strip the column header off a grid still showing today. Every row in a
+  // response shares one date, so "no row is live" is exactly "this response is historical".
+  const isShowingRecordedData = useMemo(
+    () => flatData.length > 0 && flatData.every((user) => user.availabilitySource !== "live"),
+    [flatData]
+  );
+
   // A query of its own rather than a wider listTeam, so computing slots for the page does
   // not hold up the grid's first paint.
   const { data: nextSlots, isPending: isNextSlotsPending } = trpc.viewer.availability.nextSlots.useQuery(
@@ -128,12 +139,12 @@ function AvailabilitySliderTableContent({ oAuthClientId }: AvailabilitySliderTab
       },
       {
         id: "nextAvailable",
-        header: isPastDate ? "" : t("next_available"),
+        header: isShowingRecordedData ? "" : t("next_available"),
         enableHiding: false,
         enableSorting: false,
         size: 180,
         cell: ({ row }) => {
-          if (isPastDate) {
+          if (isShowingRecordedData) {
             return <span className="text-subtle text-sm">&mdash;</span>;
           }
           const slot = nextSlots?.[String(row.original.id)];
@@ -213,7 +224,7 @@ function AvailabilitySliderTableContent({ oAuthClientId }: AvailabilitySliderTab
                 label={t("availability_jump_to_date")}
                 className="w-auto"
               />
-              {isPastDate && (
+              {isShowingRecordedData && (
                 <Badge variant="orange" title={t("availability_recorded_history_description")}>
                   {t("availability_recorded_history")}
                 </Badge>
@@ -238,7 +249,7 @@ function AvailabilitySliderTableContent({ oAuthClientId }: AvailabilitySliderTab
     ];
 
     return cols;
-  }, [browsingDate, t, nextSlots, isNextSlotsPending, isPastDate]);
+  }, [browsingDate, t, nextSlots, isNextSlotsPending, isShowingRecordedData]);
 
   const totalRowCount = data?.pages?.[0]?.meta?.totalRowCount ?? 0;
   const totalFetched = flatData.length;
