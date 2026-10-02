@@ -1,5 +1,6 @@
 import { ScheduleRepository } from "@calcom/features/schedules/repositories/ScheduleRepository";
 import { prisma } from "@calcom/prisma";
+
 import type { TrpcSessionUser } from "../../../types";
 
 type ListOptions = {

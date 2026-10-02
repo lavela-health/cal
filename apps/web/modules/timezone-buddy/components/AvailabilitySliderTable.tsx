@@ -1,44 +1,24 @@
 "use client";
 
 import dayjs from "@calcom/dayjs";
-import type { DateRange } from "@calcom/features/schedules/lib/date-ranges";
 import { useLocale } from "@calcom/lib/hooks/useLocale";
 import { CURRENT_TIMEZONE } from "@calcom/lib/timezoneConstants";
-import type { MembershipRole } from "@calcom/prisma/enums";
 import { trpc } from "@calcom/trpc/react";
-import type { UserProfile } from "@calcom/types/UserProfile";
-import { UserAvatar } from "@calcom/ui/components/avatar";
-import { Badge } from "@calcom/ui/components/badge";
-import { Button } from "@calcom/ui/components/button";
-import { ButtonGroup } from "@calcom/ui/components/buttonGroup";
 import { EmptyScreen } from "@calcom/ui/components/empty-screen";
-import { DatePicker } from "@calcom/ui/components/form/datepicker";
 import { keepPreviousData } from "@tanstack/react-query";
-import type { ColumnDef } from "@tanstack/react-table";
 import { getCoreRowModel, getFilteredRowModel, useReactTable } from "@tanstack/react-table";
 import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { DataTable, DataTableToolbar } from "~/data-table/components";
+import { DataTable } from "~/data-table/components";
 import { DataTableProvider } from "~/data-table/DataTableProvider";
 import { useDataTable } from "~/data-table/hooks/useDataTable";
+import { mondayOf } from "../lib/mondayOf";
 import { createTimezoneBuddyStore, TBContext } from "../store";
+import type { ViewMode } from "./AvailabilityViewToolbar";
+import { AvailabilityViewToolbar } from "./AvailabilityViewToolbar";
 import { CellHighlightContainer } from "./CellHighlightContainer";
-import { TimeDial } from "./TimeDial";
-
-export interface SliderUser {
-  id: number;
-  username: string | null;
-  name: string | null;
-  organizationId: number;
-  avatarUrl: string | null;
-  email: string;
-  timeZone: string;
-  role: MembershipRole;
-  defaultScheduleId: number | null;
-  dateRanges: DateRange[];
-  availabilitySource: "live" | "recorded" | "unrecorded";
-  profile: UserProfile;
-}
+import type { SliderUser } from "./columns/types";
+import { useAvailabilityColumns } from "./columns/useAvailabilityColumns";
 
 type AvailabilitySliderTableProps = {
   oAuthClientId: string;
@@ -60,8 +40,13 @@ function AvailabilitySliderTableContent({ oAuthClientId }: AvailabilitySliderTab
   const { t } = useLocale();
   const tableContainerRef = useRef<HTMLDivElement>(null);
   const [browsingDate, setBrowsingDate] = useState(dayjs());
+  const [viewMode, setViewMode] = useState<ViewMode>("day");
   const isPastDate = browsingDate.isBefore(dayjs(), "day");
   const { searchTerm } = useDataTable();
+
+  // One piece of date state drives both views: the week shown is the week containing the day
+  // shown, so switching views keeps your place instead of jumping back to today.
+  const weekStart = useMemo(() => mondayOf(browsingDate), [browsingDate]);
 
   const { data, isPending, fetchNextPage, isFetching } = trpc.viewer.availability.listTeam.useInfiniteQuery(
     {
@@ -99,157 +84,37 @@ function AvailabilitySliderTableContent({ oAuthClientId }: AvailabilitySliderTab
   const { data: nextSlots, isPending: isNextSlotsPending } = trpc.viewer.availability.nextSlots.useQuery(
     { oAuthClientId, userIds },
     // Past dates blank this column, so fetching for them is pure waste.
-    { enabled: userIds.length > 0 && !isPastDate, placeholderData: keepPreviousData }
+    { enabled: userIds.length > 0 && !isPastDate && viewMode === "day", placeholderData: keepPreviousData }
   );
 
-  const memorisedColumns = useMemo(() => {
-    const cols: ColumnDef<SliderUser>[] = [
+  const { data: weeklyHours, isPending: isWeeklyHoursPending } =
+    trpc.viewer.availability.weeklyHours.useQuery(
       {
-        id: "member",
-        accessorFn: (data) => data.name,
-        enableHiding: false,
-        enableSorting: false,
-        header: "Member",
-        size: 200,
-        cell: ({ row }) => {
-          const { username, email, timeZone, name, avatarUrl, profile } = row.original;
-          return (
-            <div className="max-w-64 flex shrink-0 items-center gap-2 overflow-hidden">
-              <UserAvatar
-                size="sm"
-                user={{
-                  username,
-                  name,
-                  avatarUrl,
-                  profile,
-                }}
-              />
-              <div className="">
-                <div className="text-emphasis max-w-64 truncate text-sm font-medium" title={email}>
-                  {name || username || t("no_name")}
-                </div>
-                <div className="text-subtle text-xs leading-none">{timeZone}</div>
-              </div>
-            </div>
-          );
-        },
-        filterFn: (row, id, value) => {
-          return row.original.name?.toLowerCase().includes(value.toLowerCase()) || false;
-        },
+        oAuthClientId,
+        userIds,
+        weekStart: weekStart.format("YYYY-MM-DD"),
+        loggedInUsersTz: CURRENT_TIMEZONE,
       },
       {
-        id: "nextAvailable",
-        header: isShowingRecordedData ? "" : t("next_available"),
-        enableHiding: false,
-        enableSorting: false,
-        size: 180,
-        cell: ({ row }) => {
-          if (isShowingRecordedData) {
-            return <span className="text-subtle text-sm">&mdash;</span>;
-          }
-          const slot = nextSlots?.[String(row.original.id)];
-          if (isNextSlotsPending) {
-            return <div className="bg-subtle h-4 w-24 animate-pulse rounded-md" />;
-          }
-          if (!slot) {
-            return (
-              <span className="text-subtle text-sm" title={t("no_upcoming_availability")}>
-                &mdash;
-              </span>
-            );
-          }
-          // Rendered in the provider's own timezone, matching the column beside it.
-          return (
-            <span className="text-emphasis text-sm">
-              {dayjs(slot.start).tz(row.original.timeZone).format("MMM D, HH:mm")}
-            </span>
-          );
-        },
-      },
-      {
-        id: "timezone",
-        accessorFn: (data) => data.timeZone,
-        header: "Timezone",
-        enableHiding: false,
-        enableSorting: false,
-        size: 160,
-        cell: ({ row }) => {
-          const { timeZone } = row.original;
-          const timeRaw = dayjs().tz(timeZone);
-          const time = timeRaw.format("HH:mm");
-          const utcOffsetInMinutes = timeRaw.utcOffset();
-          const hours = Math.abs(Math.floor(utcOffsetInMinutes / 60));
-          const minutes = Math.abs(utcOffsetInMinutes % 60);
-          const offsetFormatted = `${utcOffsetInMinutes < 0 ? "-" : "+"}${hours
-            .toString()
-            .padStart(2, "0")}:${minutes.toString().padStart(2, "0")}`;
+        enabled: userIds.length > 0 && viewMode === "week",
+        placeholderData: keepPreviousData,
+      }
+    );
 
-          return (
-            <div className="flex flex-col text-center">
-              <span className="text-default text-sm font-medium">{time}</span>
-              <span className="text-subtle text-xs leading-none">GMT {offsetFormatted}</span>
-            </div>
-          );
-        },
-      },
-      {
-        id: "slider",
-        meta: {
-          autoWidth: true,
-        },
-        enableHiding: false,
-        enableSorting: false,
-        header: () => {
-          return (
-            <div className="flex items-center space-x-2">
-              <ButtonGroup containerProps={{ className: "space-x-0" }}>
-                <Button
-                  color="minimal"
-                  variant="icon"
-                  StartIcon="chevron-left"
-                  onClick={() => setBrowsingDate(browsingDate.subtract(1, "day"))}
-                />
-                <Button
-                  onClick={() => setBrowsingDate(browsingDate.add(1, "day"))}
-                  color="minimal"
-                  StartIcon="chevron-right"
-                  variant="icon"
-                />
-              </ButtonGroup>
-              <span>{browsingDate.format("LL")}</span>
-              <DatePicker
-                date={browsingDate.toDate()}
-                onDatesChange={(date) => setBrowsingDate(dayjs(date))}
-                minDate={null}
-                label={t("availability_jump_to_date")}
-                className="w-auto"
-              />
-              {isShowingRecordedData && (
-                <Badge variant="orange" title={t("availability_recorded_history_description")}>
-                  {t("availability_recorded_history")}
-                </Badge>
-              )}
-            </div>
-          );
-        },
-        cell: ({ row }) => {
-          const { timeZone, dateRanges, availabilitySource } = row.original;
+  // Every row in a response shares one week, so one row's source answers for the table.
+  const weeklySource = weeklyHours?.[String(userIds[0])]?.source;
+  const isShowingRecordedWeek = viewMode === "week" && !!weeklySource && weeklySource !== "live";
 
-          if (availabilitySource === "unrecorded") {
-            return (
-              <span className="text-subtle text-sm" title={t("availability_no_recorded_history_description")}>
-                {t("availability_no_recorded_history")}
-              </span>
-            );
-          }
-
-          return <TimeDial timezone={timeZone} dateRanges={dateRanges} />;
-        },
-      },
-    ];
-
-    return cols;
-  }, [browsingDate, t, nextSlots, isNextSlotsPending, isShowingRecordedData]);
+  const memorisedColumns = useAvailabilityColumns({
+    viewMode,
+    browsingDate,
+    onBrowsingDateChange: setBrowsingDate,
+    nextSlots,
+    isNextSlotsPending,
+    isShowingRecordedData,
+    weeklyHours,
+    isWeeklyHoursPending,
+  });
 
   const totalRowCount = data?.pages?.[0]?.meta?.totalRowCount ?? 0;
   const totalFetched = flatData.length;
@@ -300,9 +165,13 @@ function AvailabilitySliderTableContent({ oAuthClientId }: AvailabilitySliderTab
           tableContainerRef={tableContainerRef}
           isPending={isPending}
           onScroll={(e) => fetchMoreOnBottomReached(e.target as HTMLDivElement)}>
-          <DataTableToolbar.Root>
-            <DataTableToolbar.SearchBar />
-          </DataTableToolbar.Root>
+          <AvailabilityViewToolbar
+            viewMode={viewMode}
+            onViewModeChange={setViewMode}
+            weekStart={weekStart}
+            onWeekStartChange={setBrowsingDate}
+            isShowingRecordedWeek={isShowingRecordedWeek}
+          />
         </DataTable>
       </CellHighlightContainer>
     </TBContext.Provider>

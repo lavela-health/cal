@@ -1,6 +1,7 @@
 import { updateSchedule } from "@calcom/features/schedules/services/ScheduleService";
 import { prisma } from "@calcom/prisma";
 import type { TrpcSessionUser } from "@calcom/trpc/server/types";
+
 import type { TUpdateInputSchema } from "./update.schema";
 
 type User = NonNullable<TrpcSessionUser>;
