@@ -181,6 +181,20 @@ export type GetUserAvailabilityResult = {
     start: dayjs.Dayjs;
     end: dayjs.Dayjs;
   }[];
+  /**
+   * The schedule before any busy time was subtracted, out-of-office days already removed.
+   * Callers measuring how much of a provider's offered time was taken need both sides of that
+   * subtraction, and rebuilding this side means duplicating schedule and travel resolution.
+   */
+  scheduledDateRanges: {
+    start: dayjs.Dayjs;
+    end: dayjs.Dayjs;
+  }[];
+  /**
+   * A calendar read that threw leaves `dateRanges` empty, which is indistinguishable from a
+   * provider with no free time. Anything reporting capacity must tell those apart.
+   */
+  calendarFetchFailed: boolean;
   workingHours: WorkingHoursWithUserId[];
   dateOverrides: TimeRange[];
   currentSeats:
@@ -523,6 +537,8 @@ export class UserAvailabilityService {
         timeZone: finalTimezone,
         dateRanges: [],
         oooExcludedDateRanges: [],
+        scheduledDateRanges: [],
+        calendarFetchFailed: false,
         workingHours: [],
         dateOverrides: [],
         currentSeats: [],
@@ -610,6 +626,10 @@ export class UserAvailabilityService {
         timeZone: finalTimezone,
         dateRanges: [],
         oooExcludedDateRanges: [],
+        // The schedule is still known here; only what busy time took from it is not. Callers
+        // reporting capacity blank the derived figures and keep showing what was scheduled.
+        scheduledDateRanges: oooExcludedDateRanges,
+        calendarFetchFailed: true,
         workingHours: [],
         dateOverrides: [],
         currentSeats: [],
@@ -653,6 +673,8 @@ export class UserAvailabilityService {
       timeZone: finalTimezone,
       dateRanges: dateRangesInWhichUserIsAvailable,
       oooExcludedDateRanges: dateRangesInWhichUserIsAvailableWithoutOOO,
+      scheduledDateRanges: oooExcludedDateRanges,
+      calendarFetchFailed: false,
       workingHours,
       dateOverrides,
       currentSeats,

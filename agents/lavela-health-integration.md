@@ -11,6 +11,7 @@ references are to that repo unless the path starts with `apps/` or `packages/`.
 
 **Last verified:** 2026-09-04, against `origin/main` @ `2118f8ed`.
 **§9 calendar-link suppression added:** 2026-09-11.
+**§6 weekly hours view added:** 2026-10-02.
 
 > **This doc is part of the change, not a write-up of it.** Update it in the same PR as
 > any change to what it describes — §11 especially. It is the only record of these
@@ -217,6 +218,64 @@ report built on this data overstates what a provider actually had open unless it
 A range is classified once, from its first day, not per day within it — correct for the fleet
 view, which only ever requests a single day, but a multi-day range straddling the
 live/recorded boundary would report one source for the whole row.
+
+### The weekly hours view
+
+The same page has a **Day / Week toggle**. Week mode replaces the time dial with five figures
+per managed user, from `viewer.availability.weeklyHours`
+(`packages/trpc/server/routers/viewer/availability/team/weeklyHours.handler.ts`), and is the
+first surface here that reports a provider's availability *net of their connected calendar*.
+
+| Figure | Means |
+|---|---|
+| `scheduledMinutes` | the schedule itself, out-of-office removed |
+| `blockedMinutes` | scheduled time the connected calendar took |
+| `bookedMinutes` | scheduled time confirmed bookings took |
+| `capacityMinutes` | what the provider actually offers Lavela: `free + booked` |
+| `freeMinutes` | capacity nobody has taken yet |
+
+The derivation order matters and is not interchangeable. Capacity is `free + booked`, **not**
+`scheduled − blocked`, because a Lavela session is written into the provider's own connected
+calendar as well (§9 withholds the join link, not the event). The same hour therefore arrives
+twice — once as a booking, once as a calendar event — and subtracting calendar blocks from the
+schedule would charge the provider for an hour they did offer. `blockedMinutes` is then
+`scheduled − capacity`, so it is always derived and never measured directly. Every figure is
+measured against the scheduled ranges via `subtract`, which is what makes overlapping blocks
+count once, a 3am calendar event count not at all, and a booking that outlived a shortened
+schedule stay clipped to it (`packages/features/availability/lib/summarizeAvailability.ts`).
+
+**A past week cannot report the calendar-derived three.** A free/busy query for last week
+answers for the calendar *as it stands now*: events since deleted or moved are simply gone, and
+a provider who connected their calendar on Monday has no history before it. So a week that has
+already ended goes down `RecordedWeeklyAvailabilityService` instead, which reconstructs
+`scheduledMinutes` from `ScheduleVersion` and `bookedMinutes` from the bookings themselves, and
+returns `null` for blocked, capacity and free. The UI renders those as `—` with a note saying
+why. There is no plan to approximate them, and approximating them later would silently change
+what the numbers mean.
+
+Three asymmetries between the live and recorded paths, all deliberate, all following the day
+grid's existing behaviour:
+
+- **Out-of-office** is subtracted live (the live path uses `oooExcludedDateRanges`) but not for
+  a past week, because OOO is not versioned. A provider who regularly takes OOO therefore shows
+  a lower `scheduledMinutes` this week than last.
+- **Travel schedules** are not versioned either, so none are applied to a past week.
+- **`calendarConnected`** is today's connection state even on a past week: nothing records when
+  a calendar was linked.
+
+**Pending bookings do not count as booked, on either path.** `booked` comes from
+`findAllExistingBookingsForEventTypeBetween`, which filters to `ACCEPTED`, and neither path
+passes an `eventTypeId`, so the query that would pick up slot-blocking `PENDING` bookings never
+runs. Because §3's `confirmationPolicy: always` means every Lavela booking lands pending until
+payment is secured, an unpaid session reads as free time. Consistent between the two paths, and
+wrong for an occupancy metric that wants to count held time — worth fixing deliberately rather
+than by accident.
+
+A week is "past" once it has ended in the **caller's** day, not the server's, or the current
+week would be reported as history for any admin ahead of UTC. Like the day grid, the week's
+`scheduledMinutes` for a past week is reconstructed from the version as of the week's **first
+day**, so a provider who changed their rules mid-week has the whole week rebuilt against the
+rules they started it with.
 
 A member's **timezone** is only recovered as far as the snapshot carries it. `Schedule.timeZone`
 is versioned, but a snapshot whose `timeZone` is null — a schedule that never set one — falls
@@ -520,6 +579,15 @@ Breaking any of these breaks Lavela without breaking a test in this repo.
     invariant 14, one layer over: collapsing `"unrecorded"` into "no availability" puts a false
     claim about a provider's past on an admin's screen, and unlike invariant 14's member-facing
     case, the admin reading it has no way to tell a genuine answer from a gap in the record.
+16. `viewer.availability.weeklyHours` must keep `blockedMinutes` **derived** as
+    `scheduled − capacity`, with `capacity` itself `free + booked`. Measuring blocked time
+    directly from calendar busy intervals double-counts every session that is mirrored into the
+    provider's own calendar, which is all of them, and understates capacity by exactly the
+    booked hours. And its `null` figures must stay `null`: a week whose external-calendar
+    history was never recorded must not be reported as a week with zero blocked hours, which
+    would read as a provider with full capacity. Same hazard as invariants 14 and 15 — an
+    unknown rendered as a number is a false claim, and this one feeds an occupancy metric that
+    decides how much work a therapist is given.
 
 ## 12. Deployment coupling
 

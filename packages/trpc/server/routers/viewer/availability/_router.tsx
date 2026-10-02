@@ -4,6 +4,7 @@ import { ZCalendarOverlayInputSchema } from "./calendarOverlay.schema";
 import { scheduleRouter } from "./schedule/_router";
 import { ZListTeamAvailaiblityScheme } from "./team/listTeamAvailability.schema";
 import { ZNextSlotsInputSchema } from "./team/nextSlots.schema";
+import { ZWeeklyHoursInputSchema } from "./team/weeklyHours.schema";
 import { ZUserInputSchema } from "./user.schema";
 
 type AvailabilityRouterHandlerCache = {
@@ -12,6 +13,7 @@ type AvailabilityRouterHandlerCache = {
   calendarOverlay?: typeof import("./calendarOverlay.handler").calendarOverlayHandler;
   listTeamAvailability?: typeof import("./team/listTeamAvailability.handler").listTeamAvailabilityHandler;
   nextSlots?: typeof import("./team/nextSlots.handler").nextSlotsHandler;
+  weeklyHours?: typeof import("./team/weeklyHours.handler").weeklyHoursHandler;
 };
 
 export const availabilityRouter = router({
@@ -43,6 +45,11 @@ export const availabilityRouter = router({
     const { nextSlotsHandler } = await import("./team/nextSlots.handler");
 
     return nextSlotsHandler({ ctx, input });
+  }),
+  weeklyHours: authedProcedure.input(ZWeeklyHoursInputSchema).query(async ({ ctx, input }) => {
+    const { weeklyHoursHandler } = await import("./team/weeklyHours.handler");
+
+    return weeklyHoursHandler({ ctx, input });
   }),
   schedule: scheduleRouter,
   calendarOverlay: authedProcedure.input(ZCalendarOverlayInputSchema).query(async ({ ctx, input }) => {

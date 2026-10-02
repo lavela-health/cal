@@ -23,6 +23,8 @@ const emptyAvailabilityData: RouterOutputs["viewer"]["availability"]["user"] = {
   timeZone: "",
   dateRanges: [],
   oooExcludedDateRanges: [],
+  scheduledDateRanges: [],
+  calendarFetchFailed: false,
   workingHours: [],
   dateOverrides: [],
   currentSeats: null,
