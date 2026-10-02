@@ -2,9 +2,7 @@ import { ScheduleRepository } from "@calcom/features/schedules/repositories/Sche
 import { hasReadPermissionsForUserId } from "@calcom/lib/hasEditPermissionForUser";
 import logger from "@calcom/lib/logger";
 import { prisma } from "@calcom/prisma";
-
 import { TRPCError } from "@trpc/server";
-
 import type { TrpcSessionUser } from "../../../../types";
 import type { TGetAllByUserIdInputSchema } from "./getAllSchedulesByUserId.schema";
 
@@ -20,7 +18,10 @@ type GetOptions = {
 export const getAllSchedulesByUserIdHandler = async ({ ctx, input }: GetOptions) => {
   const { user } = ctx;
 
-  const isCurrentUserPartOfTeam = await hasReadPermissionsForUserId({ memberId: input?.userId, userId: user.id });
+  const isCurrentUserPartOfTeam = await hasReadPermissionsForUserId({
+    memberId: input?.userId,
+    userId: user.id,
+  });
 
   const isCurrentUserOwner = input?.userId === user.id;
 
