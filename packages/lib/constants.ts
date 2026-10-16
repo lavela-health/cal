@@ -35,12 +35,20 @@ export const WEBAPP_URL_FOR_OAUTH = IS_PRODUCTION || IS_DEV ? WEBAPP_URL : "http
 /** @deprecated use `WEBAPP_URL` */
 export const BASE_URL = WEBAPP_URL;
 export const WEBSITE_URL = ensureProtocol(process.env.NEXT_PUBLIC_WEBSITE_URL) || "https://cal.com";
-export const APP_NAME = process.env.NEXT_PUBLIC_APP_NAME || "Cal.diy";
-export const SUPPORT_MAIL_ADDRESS = process.env.NEXT_PUBLIC_SUPPORT_MAIL_ADDRESS || "help@cal.com";
-export const COMPANY_NAME = process.env.NEXT_PUBLIC_COMPANY_NAME || "Cal.com, Inc.";
-export const SENDER_ID = process.env.NEXT_PUBLIC_SENDER_ID || "Cal";
-export const SENDER_NAME = process.env.NEXT_PUBLIC_SENDGRID_SENDER_NAME || "Cal.diy";
+// The fallbacks are Lavela's, not Cal's: these are all NEXT_PUBLIC_ vars inlined at
+// build time, so a build that loses one of them would otherwise quietly ship Cal
+// branding to production rather than failing visibly.
+// Not "Lavela Health": this feeds the iCalUID suffix (see CalendarSyncService), so the
+// fallback has to match what production builds with or a dropped build arg would start
+// minting bookings the calendar sync cannot recognise. Display copy uses COMPANY_NAME.
+export const APP_NAME = process.env.NEXT_PUBLIC_APP_NAME || "Lavela Cal";
+export const SUPPORT_MAIL_ADDRESS = process.env.NEXT_PUBLIC_SUPPORT_MAIL_ADDRESS || "hello@lavelahealth.com";
+export const COMPANY_NAME = process.env.NEXT_PUBLIC_COMPANY_NAME || "Lavela Health";
+export const SENDER_ID = process.env.NEXT_PUBLIC_SENDER_ID || "Lavela";
+export const SENDER_NAME = process.env.NEXT_PUBLIC_SENDGRID_SENDER_NAME || "Lavela Health";
 export const EMAIL_FROM_NAME = process.env.EMAIL_FROM_NAME || APP_NAME;
+/** Stand-in organizer address on calendar invites when the host's email is hidden. */
+export const HIDDEN_ORGANIZER_EMAIL = `no-reply@${SUPPORT_MAIL_ADDRESS.split("@").at(-1)}`;
 
 // This is the URL from which all Cal Links and their assets are served.
 // Use website URL to make links shorter(cal.com and not app.cal.com)
@@ -98,9 +106,14 @@ export const PUBLIC_QUICK_AVAILABILITY_ROLLOUT =
 
 /** @deprecated use `WEBAPP_URL` */
 export const NEXT_PUBLIC_BASE_URL = process.env.NEXT_PUBLIC_WEBAPP_URL || `https://${process.env.VERCEL_URL}`;
-export const LOGO = "/calcom-logo-white-word.svg";
-export const LOGO_DARK = "/cal-logo-word-black.svg";
-export const LOGO_ICON = "/cal-com-icon-white.svg";
+// "black"/"white" describe the ink, not the backdrop: the black wordmark is the one
+// that goes on a light surface. The white variants serve dark surfaces — dark mode
+// via /api/logo, and the video call room, which is dark in both themes.
+export const LOGO = "/lavela-logo-wordmark-black.svg";
+export const LOGO_DARK = "/lavela-logo-wordmark-black.svg";
+export const LOGO_ICON = "/lavela-logo-symbol-black.svg";
+export const LOGO_WHITE = "/lavela-logo-wordmark-white.svg";
+export const LOGO_ICON_WHITE = "/lavela-logo-symbol-white.svg";
 export const AVATAR_FALLBACK = "/avatar.svg";
 export const FAVICON_16 = "/favicon-16x16.png";
 export const FAVICON_32 = "/favicon-32x32.png";

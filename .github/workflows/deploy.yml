@@ -70,7 +70,19 @@ jobs:
             # against $CAL_API_INTERNAL_HOSTPORT on cal-web to confirm.
             NEXT_PUBLIC_API_V2_URL=http://cal-api-mq7v:10000/api/v2
             NEXT_PUBLIC_WEBSITE_URL=https://cal.lavelahealth.com
+            # Treat this as an identifier, not a label. getICalUID appends
+            # "@${APP_NAME}" to every new booking and that string is written into the
+            # Google Calendar event, where it cannot be changed afterwards.
+            # CalendarSyncService only acts on events whose suffix it recognises, so
+            # renaming this orphans every booking made under the old value: a host
+            # cancelling in their own calendar would silently never reach us. If it
+            # ever has to change, add the old value to CAL_MANAGED_ICAL_UID_SUFFIXES
+            # in CalendarSyncService first. The company name lives in
+            # NEXT_PUBLIC_COMPANY_NAME and is free to change.
             NEXT_PUBLIC_APP_NAME=Lavela Cal
+            NEXT_PUBLIC_SENDGRID_SENDER_NAME=Lavela Health
+            # SMS sender ID: letters, numbers and spaces only, max 11 characters.
+            NEXT_PUBLIC_SENDER_ID=Lavela
             NEXT_PUBLIC_COMPANY_NAME=Lavela Health
             NEXT_PUBLIC_SUPPORT_MAIL_ADDRESS=hello@lavelahealth.com
             NEXT_PUBLIC_EMBED_LIB_URL=https://cal.lavelahealth.com/embed/embed.js

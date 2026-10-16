@@ -3,7 +3,6 @@ import { getSuccessPageLocationMessage } from "@calcom/app-store/locations";
 import dayjs from "@calcom/dayjs";
 import { PayIcon } from "@calcom/features/bookings/components/event-meta/PayIcon";
 import { Price } from "@calcom/features/bookings/components/event-meta/Price";
-import { APP_NAME, WEBSITE_URL } from "@calcom/lib/constants";
 import { useLocale } from "@calcom/lib/hooks/useLocale";
 import { isBrowserLocale24h } from "@calcom/lib/timeFormat";
 import { CURRENT_TIMEZONE } from "@calcom/lib/timezoneConstants";
@@ -129,13 +128,6 @@ export const PaymentForm = ({
                         </div>
                       )}
                     </div>
-                    {!paymentInfo.profile.hideBranding && (
-                      <div className="mt-4 border-t pt-4 text-center text-muted text-xs dark:border-gray-900 dark:text-inverted">
-                        <a href={`${WEBSITE_URL}/signup`}>
-                          {t("create_booking_link_with_calcom", { appName: APP_NAME })}
-                        </a>
-                      </div>
-                    )}
                   </div>
                 </div>
               </div>

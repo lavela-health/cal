@@ -5,7 +5,7 @@ import { RRule } from "rrule";
 
 import { getRichDescription } from "@calcom/lib/CalEventParser";
 import { getVideoCallUrlFromCalEvent } from "@calcom/lib/CalEventParser";
-import { ORGANIZER_EMAIL_EXEMPT_DOMAINS } from "@calcom/lib/constants";
+import { APP_NAME, HIDDEN_ORGANIZER_EMAIL, ORGANIZER_EMAIL_EXEMPT_DOMAINS } from "@calcom/lib/constants";
 import { ErrorCode } from "@calcom/lib/errorCodes";
 import { ErrorWithCode } from "@calcom/lib/errors";
 import type { CalendarEvent, Person } from "@calcom/types/Calendar";
@@ -78,13 +78,13 @@ const generateIcsString = ({
     start: toICalDateArray(event.startTime),
     end: toICalDateArray(event.endTime),
     startInputType: "utc",
-    productId: "calcom/ics",
+    productId: `${APP_NAME}/ics`,
     title: event.title,
     description: getRichDescription(event, t),
     organizer: {
       name: event.organizer.name,
       ...(event.hideOrganizerEmail && !isOrganizerExempt
-        ? { email: "no-reply@cal.com" }
+        ? { email: HIDDEN_ORGANIZER_EMAIL }
         : { email: event.organizer.email }),
     },
     ...{ recurrenceRule },
