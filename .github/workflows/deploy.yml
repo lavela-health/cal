@@ -94,6 +94,12 @@ jobs:
             NEXT_PUBLIC_ORGANIZATIONS_MIN_SELF_SERVE_SEATS=30
             NEXT_PUBLIC_ORGANIZATIONS_SELF_SERVE_PRICE_NEW=37
             NEXT_PUBLIC_FORMBRICKS_HOST_URL=https://app.formbricks.com
+            # Linked from the agreement line under every booking form. Left unset these
+            # fall back to cal.com/terms and cal.com/privacy, pointing patients at
+            # another company's legal documents. Routes are defined in
+            # lavela-health/config/routes/legal.rb.
+            NEXT_PUBLIC_WEBSITE_TERMS_URL=https://lavelahealth.com/terms
+            NEXT_PUBLIC_WEBSITE_PRIVACY_POLICY_URL=https://lavelahealth.com/privacy
             CALCOM_TELEMETRY_DISABLED=1
             MAX_OLD_SPACE_SIZE=6144
             DATABASE_URL=postgresql://build:build@localhost:5432/build

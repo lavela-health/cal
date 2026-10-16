@@ -1,7 +1,7 @@
 import type { TFunction } from "i18next";
 
 import ServerTrans from "@calcom/lib/components/ServerTrans";
-import { APP_NAME, WEBAPP_URL, IS_PRODUCTION } from "@calcom/lib/constants";
+import { APP_NAME, IS_PRODUCTION, SUPPORT_MAIL_ADDRESS, WEBAPP_URL } from "@calcom/lib/constants";
 
 import { getSubject, getTypeOfInvite } from "../../lib/utils/team-invite-utils";
 import { V2BaseEmailHtml, CallToAction } from "../components";
@@ -98,7 +98,11 @@ export const TeamInviteEmail = (
         <p style={{ fontWeight: 400, margin: 0 }}>
           <>
             {props.language("have_any_questions")}{" "}
-            <a href="mailto:support@cal.com" style={{ color: "#3E3E3E" }} target="_blank" rel="noreferrer">
+            <a
+              href={`mailto:${SUPPORT_MAIL_ADDRESS}`}
+              style={{ color: "#3E3E3E" }}
+              target="_blank"
+              rel="noreferrer">
               <>{props.language("contact")}</>
             </a>{" "}
             {props.language("our_support_team")}

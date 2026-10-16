@@ -1,6 +1,6 @@
 "use client";
 
-import { DOCS_URL, IS_CALCOM, WEBSITE_URL } from "@calcom/lib/constants";
+import { IS_CALCOM, WEBSITE_URL } from "@calcom/lib/constants";
 import { useLocale } from "@calcom/lib/hooks/useLocale";
 import { Icon } from "@calcom/ui/components/icon";
 import Link from "next/link";
@@ -33,21 +33,6 @@ export function NotFound({ host }: { host: string }) {
       window.CalComPageStatus = "404";
     }
   }, []);
-
-  const links = [
-    {
-      title: t("documentation"),
-      description: t("documentation_description"),
-      icon: "file-text" as const,
-      href: DOCS_URL,
-    },
-    {
-      title: t("blog"),
-      description: t("blog_description"),
-      icon: "book-open" as const,
-      href: `${WEBSITE_URL}/blog`,
-    },
-  ];
 
   return (
     <div className="min-h-screen bg-default px-4" data-testid="404-page">
@@ -114,32 +99,6 @@ export function NotFound({ host }: { host: string }) {
               </li>
             </ul>
           )}
-          <h2 className="font-semibold text-sm text-subtle uppercase tracking-wide">{t("popular_pages")}</h2>
-          <ul role="list" className="divide-y divide-subtle border-subtle">
-            {links.map((link, linkIdx) => (
-              <li key={linkIdx} className="px-4 py-2">
-                <a href={link.href} className="relative flex items-start space-x-4 py-6 rtl:space-x-reverse">
-                  <div className="shrink-0">
-                    <span className="flex h-12 w-12 items-center justify-center rounded-lg bg-cal-muted">
-                      <Icon name={link.icon} className="h-6 w-6 text-default" aria-hidden="true" />
-                    </span>
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <h3 className="font-medium text-base text-emphasis">
-                      <span className="rounded-sm focus-within:ring-2 focus-within:ring-empthasis focus-within:ring-offset-2">
-                        <span className="absolute inset-0" aria-hidden="true" />
-                        {link.title}
-                      </span>
-                    </h3>
-                    <p className="text-base text-subtle">{link.description}</p>
-                  </div>
-                  <div className="shrink-0 self-center">
-                    <Icon name="chevron-right" className="h-5 w-5 text-muted" aria-hidden="true" />
-                  </div>
-                </a>
-              </li>
-            ))}
-          </ul>
           <div className="mt-8">
             <Link href={WEBSITE_URL} className="font-medium text-base text-emphasis hover:text-subtle">
               {t("or_go_back_home")}

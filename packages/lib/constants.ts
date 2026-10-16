@@ -35,12 +35,14 @@ export const WEBAPP_URL_FOR_OAUTH = IS_PRODUCTION || IS_DEV ? WEBAPP_URL : "http
 /** @deprecated use `WEBAPP_URL` */
 export const BASE_URL = WEBAPP_URL;
 export const WEBSITE_URL = ensureProtocol(process.env.NEXT_PUBLIC_WEBSITE_URL) || "https://cal.com";
-// The fallbacks are Lavela's, not Cal's: these are all NEXT_PUBLIC_ vars inlined at
-// build time, so a build that loses one of them would otherwise quietly ship Cal
-// branding to production rather than failing visibly.
-// Not "Lavela Health": this feeds the iCalUID suffix (see CalendarSyncService), so the
-// fallback has to match what production builds with or a dropped build arg would start
-// minting bookings the calendar sync cannot recognise. Display copy uses COMPANY_NAME.
+// The fallbacks below are Lavela's, not Cal's: these are all NEXT_PUBLIC_ vars inlined
+// at build time, so a build that loses one would otherwise quietly ship Cal branding to
+// production rather than failing visibly.
+//
+// APP_NAME is "Lavela Cal" rather than "Lavela Health" on purpose: it feeds the iCalUID
+// suffix (see CalendarSyncService), so it must match what production builds with or a
+// dropped build arg would start minting bookings the calendar sync cannot recognise.
+// Display copy uses COMPANY_NAME.
 export const APP_NAME = process.env.NEXT_PUBLIC_APP_NAME || "Lavela Cal";
 export const SUPPORT_MAIL_ADDRESS = process.env.NEXT_PUBLIC_SUPPORT_MAIL_ADDRESS || "hello@lavelahealth.com";
 export const COMPANY_NAME = process.env.NEXT_PUBLIC_COMPANY_NAME || "Lavela Health";
@@ -67,13 +69,6 @@ export const IS_CALCOM =
     new URL(WEBAPP_URL).hostname.endsWith("cal-staging.com") ||
     new URL(WEBAPP_URL).hostname.endsWith("cal.eu"));
 
-export const CONSOLE_URL =
-  new URL(WEBAPP_URL).hostname.endsWith(".cal.dev") ||
-  new URL(WEBAPP_URL).hostname.endsWith(".cal.qa") ||
-  new URL(WEBAPP_URL).hostname.endsWith(".cal-staging.com") ||
-  process.env.NODE_ENV !== "production"
-    ? `https://console.cal.dev`
-    : `https://console.cal.com`;
 const CAL_DOMAINS = [".cal.com", ".cal.dev", ".cal.eu", ".cal.qa"];
 const WEBAPP_HOSTNAME = new URL(WEBAPP_URL).hostname;
 export const IS_SELF_HOSTED = !CAL_DOMAINS.some((domain) => WEBAPP_HOSTNAME.endsWith(domain));
@@ -121,12 +116,6 @@ export const APPLE_TOUCH_ICON = "/apple-touch-icon.png";
 export const MSTILE_ICON = "/mstile-150x150.png";
 export const ANDROID_CHROME_ICON_192 = "/android-chrome-192x192.png";
 export const ANDROID_CHROME_ICON_256 = "/android-chrome-256x256.png";
-export const ROADMAP = "https://cal.com/roadmap";
-export const DESKTOP_APP_LINK = "https://cal.com/download";
-export const JOIN_COMMUNITY = "https://github.com/calcom/cal.diy/discussions";
-export const POWERED_BY_URL = "https://go.cal.com/booking";
-export const DOCS_URL = "https://cal.com/docs";
-export const DEVELOPER_DOCS = "https://developer.cal.com";
 export const SEO_IMG_DEFAULT = `${CAL_URL}/og-image.png`;
 // The Dynamic OG Image is passed through Next's Image API to further optimize it.
 // This results in a 80% smaller image 🤯. It is however important that for the query
@@ -200,9 +189,12 @@ export const ORG_MINIMUM_PUBLISHED_TEAMS_SELF_SERVE = 0;
 export const ORG_MINIMUM_PUBLISHED_TEAMS_SELF_SERVE_HELPER_DIALOGUE = 1;
 
 export const CALCOM_PRIVATE_API_ROUTE = process.env.CALCOM_PRIVATE_API_ROUTE || "https://goblin.cal.com";
+// Linked from the agreement line under every booking form, so the fallbacks must be
+// Lavela's: cal.com/privacy would point patients at another company's policy.
 export const WEBSITE_PRIVACY_POLICY_URL =
-  process.env.NEXT_PUBLIC_WEBSITE_PRIVACY_POLICY_URL || "https://cal.com/privacy";
-export const WEBSITE_TERMS_URL = process.env.NEXT_PUBLIC_WEBSITE_TERMS_URL || "https://cal.com/terms";
+  process.env.NEXT_PUBLIC_WEBSITE_PRIVACY_POLICY_URL || "https://lavelahealth.com/privacy";
+export const WEBSITE_TERMS_URL =
+  process.env.NEXT_PUBLIC_WEBSITE_TERMS_URL || "https://lavelahealth.com/terms";
 export const LINGO_DOT_DEV_API_KEY = process.env.LINGO_DOT_DEV_API_KEY;
 
 /**

@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 
-import { APP_NAME } from "@calcom/lib/constants";
+import { APP_NAME, COMPANY_NAME } from "@calcom/lib/constants";
 import { useCompatSearchParams } from "@calcom/lib/hooks/useCompatSearchParams";
 import { useLocale } from "@calcom/lib/hooks/useLocale";
 import { PERMISSIONS_GROUPED_MAP } from "@calcom/platform-constants/permissions";
@@ -77,14 +77,18 @@ export default function Authorize() {
               alt=""
               fallback={<PlusIcon className="text-subtle h-6 w-6" />}
               className="items-center"
-              imageSrc="/cal-com-icon.svg"
+              imageSrc="/lavela-logo-symbol-square.svg"
               size="lg"
             />
           )}
           <div className="relative -ml-6 h-24 w-24">
             <div className="absolute inset-0 flex items-center justify-center">
               <div className="flex h-[70px] w-[70px] items-center justify-center  rounded-full bg-white">
-                <img src="/cal-com-icon.svg" alt="Logo" className="h-16 w-16 rounded-full" />
+                <img
+                  src="/lavela-logo-symbol-square.svg"
+                  alt={COMPANY_NAME}
+                  className="h-16 w-16 rounded-full"
+                />
               </div>
             </div>
           </div>

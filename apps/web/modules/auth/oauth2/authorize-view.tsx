@@ -5,7 +5,7 @@ import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
 
-import { APP_NAME } from "@calcom/lib/constants";
+import { APP_NAME, COMPANY_NAME } from "@calcom/lib/constants";
 import { useCompatSearchParams } from "@calcom/lib/hooks/useCompatSearchParams";
 import { useLocale } from "@calcom/lib/hooks/useLocale";
 import { trpc } from "@calcom/trpc/react";
@@ -155,7 +155,11 @@ export function Authorize() {
           <div className="relative -ml-6 w-24 h-24">
             <div className="flex absolute inset-0 justify-center items-center">
               <div className="bg-default flex h-[70px] w-[70px] items-center  justify-center rounded-full">
-                <img src="/cal-com-icon.svg" alt="Logo" className="w-16 h-16 rounded-full" />
+                <img
+                  src="/lavela-logo-symbol-square.svg"
+                  alt={COMPANY_NAME}
+                  className="w-16 h-16 rounded-full"
+                />
               </div>
             </div>
           </div>

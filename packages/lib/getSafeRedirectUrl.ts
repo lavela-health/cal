@@ -1,4 +1,4 @@
-import { CONSOLE_URL, WEBAPP_URL, WEBSITE_URL, EMBED_LIB_URL } from "@calcom/lib/constants";
+import { WEBAPP_URL, WEBSITE_URL, EMBED_LIB_URL } from "@calcom/lib/constants";
 import { getTldPlus1 } from "@calcom/lib/getTldPlus1";
 
 // It ensures that redirection URL safe where it is accepted through a query params or other means where user can change it.
@@ -14,8 +14,10 @@ export const getSafeRedirectUrl = (url = "") => {
 
   const urlParsed = new URL(url);
 
-  // Avoid open redirection security vulnerability
-  if (![CONSOLE_URL, WEBAPP_URL, WEBSITE_URL].some((u) => new URL(u).origin === urlParsed.origin)) {
+  // Avoid open redirection security vulnerability.
+  // CONSOLE_URL (console.cal.com) used to be allowed here; this fork has no console, so
+  // keeping it would have left a redirect to Cal's domain reachable via a query param.
+  if (![WEBAPP_URL, WEBSITE_URL].some((u) => new URL(u).origin === urlParsed.origin)) {
     url = `${WEBAPP_URL}/`;
   }
 
