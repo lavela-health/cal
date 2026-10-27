@@ -379,6 +379,13 @@ imports `useConnectedCalendars` and `useCalendarsBusyTimes`, so the Booker calls
 `/v2/calendars` and `/v2/calendars/busy-times`. **Any audit of "which API v2 modules are
 unused" that reads only `Cal::Client` will be wrong.**
 
+**The atoms call API v2 cross-origin, straight from the browser**, so every request
+header they send must be in the CORS `allowedHeaders` list in
+`apps/api/v2/src/bootstrap.ts`. A header missing there fails the preflight and the
+browser drops the request with status 0 — no response, no server log. `@calcom/atoms`
+2.6.x adds `x-cal-atoms-version` to every request, alongside `x-cal-client-id`,
+`x-cal-platform-embed`, `cal-api-version`, `Authorization` and `Content-Type`.
+
 ## 9. The video room
 
 Both patients and providers leave Lavela for this instance to attend a session:
@@ -588,6 +595,11 @@ Breaking any of these breaks Lavela without breaking a test in this repo.
     would read as a provider with full capacity. Same hazard as invariants 14 and 15 — an
     unknown rendered as a number is a false claim, and this one feeds an occupancy metric that
     decides how much work a therapist is given.
+17. API v2's CORS `allowedHeaders` (`apps/api/v2/src/bootstrap.ts`) must keep every header
+    the atoms send — currently `x-cal-client-id`, `x-cal-platform-embed`,
+    `x-cal-atoms-version`, `cal-api-version`, `Authorization` and `Content-Type`. Dropping one
+    blocks every atoms request at the preflight. An `@calcom/atoms` upgrade in Lavela that adds
+    a header needs it added here first — see §8.
 
 ## 12. Deployment coupling
 
